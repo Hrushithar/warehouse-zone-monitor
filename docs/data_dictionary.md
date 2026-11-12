@@ -1,130 +1,159 @@
 # Data dictionary
 
-All timestamps are UTC Unix seconds. Time intervals are half-open. An empty end means the interval is still open. Fields are non-unique unless identified as a primary key (PK) or unique (UQ), including composite keys. FK denotes a foreign key. IDs, codes, enums and prose have no physical unit.
+This file is the field-level reference for every table and column in [`schema.sql`](../schema.sql). `Required` reflects the SQLite `NOT NULL` declaration, not merely application expectations. PK means primary key, FK foreign key, and UQ unique constraint.
 
-| Table | Field | Type | Required | Allowed values, units, or validation |
-|---|---|---|---|---|
-| `warehouse` | `warehouse_id` | TEXT | Yes | PK, generated as `WH-001` |
-| `warehouse` | `name` | TEXT | Yes | Nonblank display name |
-| `zone` | `zone_id` | TEXT | Yes | PK, generated as `ZONE-WH-001-001` |
-| `zone` | `warehouse_id` | TEXT | Yes | FK to `warehouse` |
-| `zone` | `name` | TEXT | Yes | Nonblank, UQ within warehouse |
-| `zone` | `zone_type` | TEXT | Yes | `COLD`, `AMBIENT`, `HOT` |
-| `zone` | `occupancy_limit` | INTEGER | Yes | Positive count of people |
-| `zone` | `door_open_limit_seconds` | INTEGER | Yes | Positive duration in seconds |
-| `sensor` | `sensor_id` | TEXT | Yes | PK, generated as `SNS-ZONE-WH-001-001-TEMP-01`. Retain the ID after reassignment |
-| `sensor` | `sensor_type` | TEXT | Yes | `TEMP`, `HUMIDITY`, `OCCUPANCY` |
-| `sensor` | `sample_interval_seconds` | INTEGER | Yes | Positive expected time between samples, in seconds |
-| `sensor_zone_assignment` | `assignment_id` | TEXT | Yes | PK, generated as `ASG-000001` |
-| `sensor_zone_assignment` | `sensor_id` | TEXT | Yes | FK to `sensor`. UQ with `zone_id` and `effective_from` |
-| `sensor_zone_assignment` | `zone_id` | TEXT | Yes | FK to `zone` |
-| `sensor_zone_assignment` | `effective_from` | INTEGER | Yes | Inclusive start, UTC Unix seconds |
-| `sensor_zone_assignment` | `effective_to` | INTEGER | No | Exclusive end, UTC Unix seconds. Must follow start. `NULL` means open-ended |
-| `sensor_zone_assignment` | `rationale` | TEXT | No | Nonblank when supplied. Conflicting cross-zone assignments without documented rationale are flagged by validation |
-| `sensor_reading` | `reading_id` | TEXT | Yes | PK, `RDG-<sensor-id>-<YYYYMMDDTHHMMSSZ>` |
-| `sensor_reading` | `sensor_id` | TEXT | Yes | FK to `sensor`. UQ with `observed_at` |
-| `sensor_reading` | `observed_at` | INTEGER | Yes | UTC Unix seconds. Validate against the active sensor assignment |
-| `sensor_reading` | `value` | REAL | Yes | Finite value. Temperature in °C, humidity in 0–100% RH, occupancy in whole people ≥ 0 |
-| `door_event` | `door_event_id` | TEXT | Yes | PK, generated as `DOR-000001` |
-| `door_event` | `zone_id` | TEXT | Yes | FK to `zone` |
-| `door_event` | `door_code` | TEXT | Yes | Nonblank code scoped to a zone, such as `DOOR-01` |
-| `door_event` | `occurred_at` | INTEGER | Yes | UTC Unix seconds. UQ with `zone_id` and `door_code` |
-| `door_event` | `event_type` | TEXT | Yes | `OPEN` or `CLOSE`. Validate chronological state transitions per door |
+## Time and interval conventions
 
+All stored timestamps are integer UTC Unix seconds. Display them in SQLite with `datetime(column_name, 'unixepoch')`. Effective assignments, requirement versions, lot dwells, and alarm windows are half-open intervals: `[start, end)`. The start instant is included; the end instant is excluded. A nullable effective or dwell end means the interval remains open.
 
-## Relationships and time conventions
+For an alarm `[a_start, a_end)` and a same-zone lot dwell `[l_start, l_end)`, the intersection is:
 
-- Warehouse to Zone is 1:N. Each zone belongs to one warehouse.
-- Sensor to SensorReading is 1:N. Each reading belongs to one sensor.
-- Zone to DoorEvent is 1:N. Each event belongs to one zone.
-- Sensor to Zone is N:M over time through SensorZoneAssignment.
-  Each assignment has one sensor and one zone.
-- Assignment intervals are half-open: [effective_from, effective_to).
-  When a sensor moves, close its current interval and insert a new assignment.
-- SQL enforces row-level constraints and foreign keys. The pipeline validator
-  checks cross-row rules, including conflicting assignments and door sequences,
-  and cross-table rules, including sensor-specific value ranges.
+```text
+overlap_start   = max(a_start, l_start)
+overlap_end     = min(a_end, l_end)       # treat a NULL lot end as unbounded
+overlap_seconds = overlap_end - overlap_start
+```
 
+An `alarm_lot` row is written only when `overlap_end > overlap_start`. If a lot has multiple qualifying dwell rows, the monitor sums their positive overlap seconds by lot.
 
-| Relationship | Cardinality and rule |
-|---|---|
-| StorageRequirement → InventoryLot | 1:N. Each lot references the requirement version active when it was received. The lot keeps that version for traceability. |
-| InventoryLot ↔ Zone | N:M over time through `lot_storage`. Each dwell row has one lot and one zone. A move closes one interval and creates another. |
-| Zone → Alarm | 1:N. Each alarm belongs to one zone and points to the sensor, door event, or placement that triggered it. |
-| Alarm ↔ InventoryLot | N:M through `alarm_lot`. An alarm may have zero affected lots if the zone was empty. |
-| Alarm → AlarmStateEvent | 1:N. Append `OPEN → ACKNOWLEDGED → RESOLVED`. The latest event determines current state. |
-| Alarm → Inspection → Remediation | 1:N at each step. An inspection may produce zero or more actions. Lot-level actions require an affected-lot link for the same alarm. |
+A threshold breach means observed values were outside a configured range for at least three consecutive cadence points. A `SENSOR_GAP` means expected cadence points were absent between two readings; no environmental value is known for that interval. Gap-linked lots therefore use `TELEMETRY_UNVERIFIED`, not `POTENTIAL_EXPOSURE`.
 
-- Sensor, DoorEvent and LotStorage each have a 1:N relationship to Alarm. An alarm has exactly one of these three optional trigger references, according to its type.
-- An AlarmLot row can have zero or more remediation records. Each lot-specific remediation references exactly one AlarmLot row, and equipment remediation has no lot reference.
+## Location and sensor tables
 
-## Inventory and response fields
+| Table | Column | SQLite type | Required | Meaning, units/format, allowed values, keys and constraints |
+|---|---|---:|:---:|---|
+| `warehouse` | `warehouse_id` | TEXT | Yes | PK; stable warehouse identifier, generated as `WH-001`. |
+| `warehouse` | `name` | TEXT | Yes | Display name; SQLite requires nonblank trimmed text. |
+| `zone` | `zone_id` | TEXT | Yes | PK; stable zone identifier, generated as `ZONE-WH-001-001`. |
+| `zone` | `warehouse_id` | TEXT | Yes | FK → `warehouse.warehouse_id`. |
+| `zone` | `name` | TEXT | Yes | Display name; nonblank; UQ with `warehouse_id`. |
+| `zone` | `zone_type` | TEXT | Yes | `COLD`, `AMBIENT`, or `HOT`; enforced by `CHECK`. |
+| `zone` | `occupancy_limit` | INTEGER | Yes | Maximum allowed people before a breach; SQLite requires `> 0`. |
+| `zone` | `door_open_limit_seconds` | INTEGER | Yes | Allowed door-open duration in seconds; SQLite requires `> 0`. |
+| `sensor` | `sensor_id` | TEXT | Yes | PK; stable device identifier, generated like `SNS-ZONE-WH-001-001-TEMP-01`; identity is retained across reassignment. |
+| `sensor` | `sensor_type` | TEXT | Yes | `TEMP`, `HUMIDITY`, or `OCCUPANCY`; enforced by `CHECK`. |
+| `sensor` | `sample_interval_seconds` | INTEGER | Yes | Expected cadence in seconds; SQLite requires `> 0`; generated sensors use 300 seconds. |
+| `sensor_zone_assignment` | `assignment_id` | TEXT | Yes | PK; stable assignment identifier, normally `ASG-000001`. |
+| `sensor_zone_assignment` | `sensor_id` | TEXT | Yes | FK → `sensor.sensor_id`; UQ with `zone_id` and `effective_from`. |
+| `sensor_zone_assignment` | `zone_id` | TEXT | Yes | FK → `zone.zone_id`; UQ with `sensor_id` and `effective_from`. |
+| `sensor_zone_assignment` | `effective_from` | INTEGER | Yes | Inclusive assignment start, UTC Unix seconds; UQ component. |
+| `sensor_zone_assignment` | `effective_to` | INTEGER | No | Exclusive assignment end, UTC Unix seconds; `NULL` is open-ended; SQLite requires it to be after `effective_from` when present. |
+| `sensor_zone_assignment` | `rationale` | TEXT | No | Optional explanation; SQLite requires nonblank trimmed text when present. |
+| `sensor_reading` | `reading_id` | TEXT | Yes | PK; generated as `RDG-<sensor-id>-<YYYYMMDDTHHMMSSZ>`. |
+| `sensor_reading` | `sensor_id` | TEXT | Yes | FK → `sensor.sensor_id`; UQ with `observed_at`. |
+| `sensor_reading` | `observed_at` | INTEGER | Yes | Observation time, UTC Unix seconds; UQ with `sensor_id`. |
+| `sensor_reading` | `value` | REAL | Yes | Reading value. Intended units depend on sensor type: °C, percent relative humidity, or whole people. SQLite only enforces non-null storage; range/integer rules are validated by code. |
+| `door_event` | `door_event_id` | TEXT | Yes | PK; stable event identifier, generated as `DOR-000001`. |
+| `door_event` | `zone_id` | TEXT | Yes | FK → `zone.zone_id`; UQ with `door_code` and `occurred_at`. |
+| `door_event` | `door_code` | TEXT | Yes | Zone-scoped door identifier such as `DOOR-01`; nonblank; UQ component. |
+| `door_event` | `occurred_at` | INTEGER | Yes | Event time, UTC Unix seconds; UQ with `zone_id` and `door_code`. |
+| `door_event` | `event_type` | TEXT | Yes | `OPEN` or `CLOSE`; enforced by `CHECK`. |
 
-| Table | Field | Type | Required | Allowed values, units, or validation |
-|---|---|---|---|---|
-| storage_requirement | requirement_id | TEXT | Yes | PK. Stable requirement-version ID. |
-| storage_requirement | product_code | TEXT | Yes | Nonblank. UQ with effective_from. |
-| storage_requirement | required_zone_type | TEXT | Yes | COLD, AMBIENT, HOT. |
-| storage_requirement | temp_min_c | REAL | Yes | Inclusive °C minimum, at or below temp_max_c. |
-| storage_requirement | temp_max_c | REAL | Yes | Inclusive °C maximum, at or above temp_min_c. |
-| storage_requirement | humidity_min_pct | REAL | Yes | Inclusive minimum in % RH, 0–100 and at or below humidity_max_pct. |
-| storage_requirement | humidity_max_pct | REAL | Yes | Inclusive maximum in % RH, between humidity_min_pct and 100. |
-| storage_requirement | effective_from | INTEGER | Yes | Inclusive start. UQ with product_code. |
-| storage_requirement | effective_to | INTEGER | No | Exclusive end, after effective_from when supplied. |
-| inventory_lot | lot_id | TEXT | Yes | PK, e.g. LOT-2026-000001. |
-| inventory_lot | requirement_id | TEXT | Yes | FK to requirement version active at receipt. |
-| inventory_lot | received_at | INTEGER | Yes | Receipt time within the requirement’s effective interval. |
-| inventory_lot | unit_count | INTEGER | Yes | Positive count of inventory units. |
-| lot_storage | storage_id | TEXT | Yes | PK. Stable dwell ID. |
-| lot_storage | lot_id | TEXT | Yes | FK to inventory_lot. UQ with entered_at. |
-| lot_storage | zone_id | TEXT | Yes | FK to zone. |
-| lot_storage | entered_at | INTEGER | Yes | Inclusive start at or after receipt. UQ with lot_id. Dwells for one lot cannot overlap. |
-| lot_storage | exited_at | INTEGER | No | Exclusive end, after entered_at when supplied. |
-| alarm | alarm_id | TEXT | Yes | PK. Stable alarm ID. |
-| alarm | zone_id | TEXT | Yes | FK to zone. Must match the trigger’s zone at the start of the incident. |
-| alarm | alarm_type | TEXT | Yes | TEMP_EXCURSION, HUMIDITY_EXCURSION, HIGH_OCCUPANCY, DOOR_OPEN_TOO_LONG, SENSOR_GAP, INCOMPATIBLE_STORAGE. |
-| alarm | started_at | INTEGER | Yes | Inclusive incident start. |
-| alarm | window_end_at | INTEGER | Yes | Exclusive incident end, after started_at. |
-| alarm | detected_at | INTEGER | Yes | Detection time at or after started_at. |
-| alarm | rule_version | TEXT | Yes | Nonblank rule version. |
-| alarm | reason | TEXT | Yes | Nonblank decision explanation. |
-| alarm | sensor_id | TEXT | Conditional | FK to sensor. Required for temperature, humidity, occupancy and gap alarms. NULL otherwise. |
-| alarm | door_event_id | TEXT | Conditional | FK to the opening door event. Required for long-open alarms. NULL otherwise. |
-| alarm | storage_id | TEXT | Conditional | FK to lot_storage. Required for incompatible storage. NULL otherwise. |
-| alarm_lot | alarm_id | TEXT | Yes | FK to alarm. Composite PK with lot_id. |
-| alarm_lot | lot_id | TEXT | Yes | FK to inventory_lot. Composite PK with alarm_id. |
-| alarm_lot | overlap_seconds | INTEGER | Yes | Positive seconds of intersecting zone dwell and alarm intervals. |
-| alarm_lot | impact_type | TEXT | Yes | POTENTIAL_EXPOSURE, TELEMETRY_UNVERIFIED, PLACEMENT_VIOLATION. |
-| alarm_state_event | alarm_id | TEXT | Yes | FK to alarm. Composite PK with event_seq. |
-| alarm_state_event | event_seq | INTEGER | Yes | Positive event ordinal. Composite PK with alarm_id. Replay uses 1, 2 and optional 3. |
-| alarm_state_event | state | TEXT | Yes | OPEN, ACKNOWLEDGED, RESOLVED, in that sequence. |
-| alarm_state_event | occurred_at | INTEGER | Yes | First event equals detection time. Later events follow in timestamp order. |
-| alarm_state_event | actor_role | TEXT | Yes | SYSTEM, OPERATOR, QUALITY, MAINTENANCE, PLANNER, OT_IT. |
-| inspection | inspection_id | TEXT | Yes | PK. Also forms the parent key for remediation with alarm_id. |
-| inspection | alarm_id | TEXT | Yes | FK to alarm. UQ with inspection_id. |
-| inspection | inspected_at | INTEGER | Yes | At or after detection. |
-| inspection | inspector_role | TEXT | Yes | QUALITY, MAINTENANCE, OT_IT. |
-| inspection | finding | TEXT | Yes | RISK_CONFIRMED, TELEMETRY_UNVERIFIED, NO_PRODUCT_IMPACT. |
-| inspection | notes | TEXT | Yes | Nonblank. Records evidence and any inventory location follow-up. |
-| remediation | remediation_id | TEXT | Yes | PK. Stable action ID. |
-| remediation | inspection_id | TEXT | Yes | Composite FK with alarm_id to inspection. |
-| remediation | alarm_id | TEXT | Yes | Composite FK with inspection_id to inspection, and with a present lot_id to alarm_lot. |
-| remediation | lot_id | TEXT | Conditional | Required for quarantine, release and move. NULL for equipment actions. Composite FK with alarm_id. |
-| remediation | action_type | TEXT | Yes | QUARANTINE_LOT, RELEASE_LOT, MOVE_LOT, REPAIR_SENSOR, CHECK_DOOR, ADJUST_ENVIRONMENT. |
-| remediation | performed_at | INTEGER | Yes | At or after inspection. A quarantine must fall inside an affected-zone dwell. |
-| remediation | notes | TEXT | Yes | Nonblank description of simulated action. |
+## Requirements and inventory tables
 
-## Labelled scenarios
+| Table | Column | SQLite type | Required | Meaning, units/format, allowed values, keys and constraints |
+|---|---|---:|:---:|---|
+| `storage_requirement` | `requirement_id` | TEXT | Yes | PK; stable requirement-version identifier, generated as `REQ-001`. |
+| `storage_requirement` | `product_code` | TEXT | Yes | Product family; nonblank; UQ with `effective_from`. |
+| `storage_requirement` | `required_zone_type` | TEXT | Yes | Required `COLD`, `AMBIENT`, or `HOT` zone; enforced by `CHECK`. |
+| `storage_requirement` | `temp_min_c` | REAL | Yes | Inclusive minimum temperature in °C; SQLite requires `temp_min_c <= temp_max_c`. |
+| `storage_requirement` | `temp_max_c` | REAL | Yes | Inclusive maximum temperature in °C; paired-order `CHECK` with the minimum. |
+| `storage_requirement` | `humidity_min_pct` | REAL | Yes | Inclusive minimum relative humidity, percent; SQLite requires 0–100 and not above the maximum. |
+| `storage_requirement` | `humidity_max_pct` | REAL | Yes | Inclusive maximum relative humidity, percent; SQLite requires it between the minimum and 100. |
+| `storage_requirement` | `effective_from` | INTEGER | Yes | Inclusive version start, UTC Unix seconds; UQ with `product_code`. |
+| `storage_requirement` | `effective_to` | INTEGER | No | Exclusive version end, UTC Unix seconds; `NULL` is open-ended; must follow `effective_from` when present. |
+| `inventory_lot` | `lot_id` | TEXT | Yes | PK; stable lot identifier, generated like `LOT-2026-000001`. |
+| `inventory_lot` | `requirement_id` | TEXT | Yes | FK → `storage_requirement.requirement_id`; preserves the requirement version selected at receipt. |
+| `inventory_lot` | `received_at` | INTEGER | Yes | Receipt time, UTC Unix seconds. Requirement effectiveness at receipt is validated by code, not SQLite. |
+| `inventory_lot` | `unit_count` | INTEGER | Yes | Inventory units; SQLite requires `> 0`. |
+| `lot_storage` | `storage_id` | TEXT | Yes | PK; stable dwell identifier, generated as `STG-000001`. |
+| `lot_storage` | `lot_id` | TEXT | Yes | FK → `inventory_lot.lot_id`; UQ with `entered_at`. |
+| `lot_storage` | `zone_id` | TEXT | Yes | FK → `zone.zone_id`. |
+| `lot_storage` | `entered_at` | INTEGER | Yes | Inclusive dwell start, UTC Unix seconds; UQ with `lot_id`. |
+| `lot_storage` | `exited_at` | INTEGER | No | Exclusive dwell end, UTC Unix seconds; `NULL` means still present; SQLite requires it to follow `entered_at` when present. |
 
-| Scenario | Input change | Expected decision |
-|---|---|---|
-| Temperature excursion | Cold-zone sensor reports 11 °C for three samples | `TEMP_EXCURSION` |
-| Humidity excursion | Ambient-zone sensor reports 72% RH for three samples | `HUMIDITY_EXCURSION` |
-| High occupancy | Hot-zone sensor reports 12 people for three samples | `HIGH_OCCUPANCY` |
-| Long door opening | Cold-zone door stays open for 240 seconds | `DOOR_OPEN_TOO_LONG` |
-| Sensor outage | Three consecutive samples are missing | `SENSOR_GAP` |
-| Sensor drift | One temperature sensor gradually diverges from its peer | `SENSOR_DRIFT` diagnostic |
-| Incompatible placement | One chilled lot is placed in the ambient zone | `INCOMPATIBLE_STORAGE` |
-| Conflicting assignment | One sensor has overlapping assignments in two zones | `AMBIGUOUS_SENSOR_ZONE` diagnostic |
+## Incident and response tables
 
-The export also contains labelled output omissions in `negative_fixtures.json`. Each record identifies the output stage, the exact alarm or alarm-lot key to omit, and the evaluation failure expected from that omission.
+| Table | Column | SQLite type | Required | Meaning, units/format, allowed values, keys and constraints |
+|---|---|---:|:---:|---|
+| `alarm` | `alarm_id` | TEXT | Yes | PK; stable incident identifier, generated as `ALM-000001`. |
+| `alarm` | `zone_id` | TEXT | Yes | FK → `zone.zone_id`; attributed incident zone. Source-zone consistency is validated by code. |
+| `alarm` | `alarm_type` | TEXT | Yes | `TEMP_EXCURSION`, `HUMIDITY_EXCURSION`, `HIGH_OCCUPANCY`, `DOOR_OPEN_TOO_LONG`, `SENSOR_GAP`, or `INCOMPATIBLE_STORAGE`; enforced by `CHECK`. |
+| `alarm` | `started_at` | INTEGER | Yes | Inclusive incident start, UTC Unix seconds. |
+| `alarm` | `window_end_at` | INTEGER | Yes | Exclusive incident end, UTC Unix seconds; SQLite requires it after `started_at`. |
+| `alarm` | `detected_at` | INTEGER | Yes | Detection time, UTC Unix seconds; SQLite requires `>= started_at`. It can follow `window_end_at` for a gap because the next reading reveals the missing interval. |
+| `alarm` | `rule_version` | TEXT | Yes | Nonblank detector rule version; current value `v1`. |
+| `alarm` | `reason` | TEXT | Yes | Nonblank human-readable decision explanation. |
+| `alarm` | `sensor_id` | TEXT | No | FK → `sensor.sensor_id`; the source for temperature, humidity, occupancy, and gap alarms. The alarm-type `CHECK` makes this required for those types and forbids the other source columns. |
+| `alarm` | `door_event_id` | TEXT | No | FK → `door_event.door_event_id`; opening event for a door-duration alarm. The alarm-type `CHECK` makes this the sole source for that type. |
+| `alarm` | `storage_id` | TEXT | No | FK → `lot_storage.storage_id`; offending dwell for incompatible storage. The alarm-type `CHECK` makes this the sole source for that type. |
+| `alarm_lot` | `alarm_id` | TEXT | Yes | FK → `alarm.alarm_id`; composite PK with `lot_id`. |
+| `alarm_lot` | `lot_id` | TEXT | Yes | FK → `inventory_lot.lot_id`; composite PK with `alarm_id`. |
+| `alarm_lot` | `overlap_seconds` | INTEGER | Yes | Sum of positive same-zone dwell/alarm intersections, in seconds; SQLite requires `> 0`. |
+| `alarm_lot` | `impact_type` | TEXT | Yes | `POTENTIAL_EXPOSURE`, `TELEMETRY_UNVERIFIED`, or `PLACEMENT_VIOLATION`; enforced by `CHECK`. |
+| `alarm_state_event` | `alarm_id` | TEXT | Yes | FK → `alarm.alarm_id`; composite PK with `event_seq`. |
+| `alarm_state_event` | `event_seq` | INTEGER | Yes | Positive per-alarm ordinal; composite PK with `alarm_id`; replay uses 1, 2, and optionally 3. |
+| `alarm_state_event` | `state` | TEXT | Yes | `OPEN`, `ACKNOWLEDGED`, or `RESOLVED`; enforced by `CHECK`. Sequence and timestamp order are validated by code. |
+| `alarm_state_event` | `occurred_at` | INTEGER | Yes | State-event time, UTC Unix seconds. |
+| `alarm_state_event` | `actor_role` | TEXT | Yes | `SYSTEM`, `OPERATOR`, `QUALITY`, `MAINTENANCE`, `PLANNER`, or `OT_IT`; enforced by `CHECK`. |
+| `inspection` | `inspection_id` | TEXT | Yes | PK; stable inspection identifier, generated as `INSP-000001`; also UQ with `alarm_id` to support the composite remediation FK. |
+| `inspection` | `alarm_id` | TEXT | Yes | FK → `alarm.alarm_id`; UQ with `inspection_id`. The schema allows multiple inspections per alarm. |
+| `inspection` | `inspected_at` | INTEGER | Yes | Inspection time, UTC Unix seconds; ordering after detection is validated by code. |
+| `inspection` | `inspector_role` | TEXT | Yes | `QUALITY`, `MAINTENANCE`, or `OT_IT`; enforced by `CHECK`. |
+| `inspection` | `finding` | TEXT | Yes | `RISK_CONFIRMED`, `TELEMETRY_UNVERIFIED`, or `NO_PRODUCT_IMPACT`; enforced by `CHECK`. |
+| `inspection` | `notes` | TEXT | Yes | Nonblank audit notes. |
+| `remediation` | `remediation_id` | TEXT | Yes | PK; stable action identifier, generated as `REM-000001`. |
+| `remediation` | `inspection_id` | TEXT | Yes | With `alarm_id`, composite FK → `inspection(inspection_id, alarm_id)`. |
+| `remediation` | `alarm_id` | TEXT | Yes | Composite FK with `inspection_id` to `inspection`; with non-null `lot_id`, composite FK to `alarm_lot`. |
+| `remediation` | `lot_id` | TEXT | No | With `alarm_id`, FK → `alarm_lot(alarm_id, lot_id)`. Required for lot actions and forbidden for equipment/environment actions by `CHECK`. |
+| `remediation` | `action_type` | TEXT | Yes | `QUARANTINE_LOT`, `RELEASE_LOT`, `MOVE_LOT`, `REPAIR_SENSOR`, `CHECK_DOOR`, or `ADJUST_ENVIRONMENT`; enforced by `CHECK`. |
+| `remediation` | `performed_at` | INTEGER | Yes | Action time, UTC Unix seconds; ordering and quarantine-dwell membership are validated by code. |
+| `remediation` | `notes` | TEXT | Yes | Nonblank simulated-action description. |
+
+## Relationships and cardinality
+
+- `warehouse` 1:N `zone`; every zone belongs to one warehouse.
+- `sensor` 1:N `sensor_reading`; each reading belongs to one sensor.
+- `sensor` N:M `zone` over time through `sensor_zone_assignment`. Each bridge row is one effective assignment. The generated baseline has one open assignment per sensor; the ambiguous fixture adds a cross-zone overlap.
+- `zone` 1:N `door_event`; a door is identified within a zone by `door_code`, and events form its chronological history.
+- `storage_requirement` 1:N `inventory_lot`; each lot retains one versioned requirement.
+- `inventory_lot` N:M `zone` over time through `lot_storage`. Each bridge row is one dwell; a move closes a dwell and creates another.
+- `zone` 1:N `alarm`; each alarm belongs to one zone.
+- `sensor`, `door_event`, and `lot_storage` each have a possible 1:N source relationship to `alarm`. Exactly one source column is populated as determined by `alarm_type`.
+- `alarm` N:M `inventory_lot` through `alarm_lot`. An alarm can have no lot links when no inventory overlaps its window. A lot can be linked to many alarms.
+- `alarm` 1:N `alarm_state_event`; rows are append-only history and the greatest `event_seq` is the current state.
+- `alarm` 1:N `inspection`; the current replay writes one inspection per alarm, while the schema permits more.
+- `inspection` 1:N `remediation`; an inspection can produce no actions or several actions.
+- `alarm_lot` 1:N `remediation` for lot-specific actions through `(alarm_id, lot_id)`. Equipment or environment actions have `lot_id = NULL` and remain tied to the alarm through their inspection.
+
+## What SQLite enforces
+
+With `PRAGMA foreign_keys = ON`, SQLite enforces:
+
+- all PK, UQ, FK, and `NOT NULL` declarations shown above;
+- nonblank checks on selected names, codes, rationales, rule text, and notes;
+- enum checks for zone, sensor, door, alarm, impact, state, role, finding, and action values;
+- positive numeric checks for configured limits, cadence, units, overlap seconds, and event sequence;
+- row-local ordering for assignment, requirement, dwell, and alarm intervals;
+- requirement range ordering and humidity bounds;
+- the exactly-one-source pattern for each `alarm_type`;
+- whether an action type requires or forbids `remediation.lot_id`.
+
+SQLite does not infer business correctness merely because a value has type `REAL` or `INTEGER`; SQLite uses dynamic typing, and several cross-row rules require code-level validation.
+
+## What replay and export validation enforce
+
+The Python stages add rules that are not expressible in the current row-local schema checks:
+
+- humidity readings are in 0–100% RH; occupancy is a nonnegative whole number; readings align to the sensor cadence and replay start;
+- exactly one effective zone assignment exists when attributing a sensor reading or sensor-sourced alarm; conflicting cross-zone assignments without a rationale are diagnosed;
+- temperature/humidity limits come from the one active requirement for the zone type at replay start; threshold alarms need three consecutive breaches; drift uses three consecutive peer differences strictly greater than 1.5 °C;
+- door events follow a valid chronological open/close sequence, and duration alarms are strictly over the zone limit;
+- requirement versions are effective when a lot is received; dwell starts are not before receipt; dwells for one lot do not overlap;
+- alarm source zone/time matches the effective sensor assignment, opening door event, or offending storage dwell;
+- affected lots have positive, correctly summed same-zone overlap, the correct impact type, and placement alarms link only their source dwell's lot;
+- inspections occur no earlier than detection; remediation occurs no earlier than inspection; quarantine occurs while the affected lot is still dwelling in the alarm zone;
+- lifecycle history starts with `OPEN` at detection, continues with ordered `ACKNOWLEDGED`, and optionally ends with ordered `RESOLVED`; no sequence above 3 is accepted by the current export validator;
+- evaluator decisions match separate ground truth, and evaluator lot links match an independent recomputation.
+
+The monitor also deliberately skips zone attribution for a reading with zero or multiple active assignments. Gap detection currently covers missing cadence points between observations only; without an independent expected monitoring window it cannot identify leading, trailing, or complete silence.
