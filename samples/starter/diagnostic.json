@@ -1,0 +1,4 @@
+[
+{"diagnostic_id": "DGN-000001", "issue_type": "AMBIGUOUS_SENSOR_ZONE", "zone_id": "ZONE-WH-001-003", "sensor_id": "SNS-ZONE-WH-001-001-HUMIDITY-02", "door_event_id": null, "started_at": 1792639200, "window_end_at": 1792640400},
+{"diagnostic_id": "DGN-000002", "issue_type": "SENSOR_DRIFT", "zone_id": "ZONE-WH-001-002", "sensor_id": "SNS-ZONE-WH-001-002-TEMP-02", "door_event_id": null, "started_at": 1792638000, "window_end_at": 1792638900}
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "case_id": "CASE-001",
+    "expected_decision": "TEMP_EXCURSION",
+    "issue_type": "TEMP_EXCURSION",
+    "source_id": "SNS-ZONE-WH-001-001-TEMP-01",
+    "started_at": 1792634400,
+    "window_end_at": 1792635300,
+    "zone_id": "ZONE-WH-001-001"
+  },
+  {
+    "case_id": "CASE-002",
+    "expected_decision": "HUMIDITY_EXCURSION",
+    "issue_type": "HUMIDITY_EXCURSION",
+    "source_id": "SNS-ZONE-WH-001-002-HUMIDITY-01",
+    "started_at": 1792634400,
+    "window_end_at": 1792635300,
+    "zone_id": "ZONE-WH-001-002"
+  },
+  {
+    "case_id": "CASE-003",
+    "expected_decision": "HIGH_OCCUPANCY",
+    "issue_type": "HIGH_OCCUPANCY",
+    "source_id": "SNS-ZONE-WH-001-003-OCCUPANCY-01",
+    "started_at": 1792634400,
+    "window_end_at": 1792635300,
+    "zone_id": "ZONE-WH-001-003"
+  },
+  {
+    "case_id": "CASE-004",
+    "expected_decision": "DOOR_OPEN_TOO_LONG",
+    "issue_type": "LONG_DOOR_OPEN",
+    "source_id": "DOR-000001",
+    "started_at": 1792630800,
+    "window_end_at": 1792631040,
+    "zone_id": "ZONE-WH-001-001"
+  },
+  {
+    "case_id": "CASE-005",
+    "expected_decision": "SENSOR_GAP",
+    "issue_type": "SENSOR_OUTAGE",
+    "source_id": "SNS-ZONE-WH-001-001-HUMIDITY-01",
+    "started_at": 1792636200,
+    "window_end_at": 1792637100,
+    "zone_id": "ZONE-WH-001-001"
+  },
+  {
+    "case_id": "CASE-006",
+    "expected_decision": "SENSOR_DRIFT",
+    "issue_type": "SENSOR_DRIFT",
+    "source_id": "SNS-ZONE-WH-001-002-TEMP-02",
+    "started_at": 1792638000,
+    "window_end_at": 1792638900,
+    "zone_id": "ZONE-WH-001-002"
+  },
+  {
+    "case_id": "CASE-007",
+    "expected_decision": "INCOMPATIBLE_STORAGE",
+    "issue_type": "INCOMPATIBLE_LOT_ZONE",
+    "source_id": "STG-000001",
+    "started_at": 1792631100,
+    "window_end_at": 1792645500,
+    "zone_id": "ZONE-WH-001-002"
+  },
+  {
+    "case_id": "CASE-008",
+    "expected_decision": "AMBIGUOUS_SENSOR_ZONE",
+    "issue_type": "CONFLICTING_SENSOR_ASSIGNMENT",
+    "source_id": "SNS-ZONE-WH-001-001-HUMIDITY-02",
+    "started_at": 1792639200,
+    "window_end_at": 1792640400,
+    "zone_id": "ZONE-WH-001-003"
+  }
+]

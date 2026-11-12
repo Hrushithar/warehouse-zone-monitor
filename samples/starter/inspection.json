@@ -1,0 +1,8 @@
+[
+{"inspection_id": "INSP-000001", "alarm_id": "ALM-000001", "inspected_at": 1792631041, "inspector_role": "MAINTENANCE", "finding": "RISK_CONFIRMED", "notes": "Door duration exceeded the limit. Inventory impact uses dwell overlap."},
+{"inspection_id": "INSP-000002", "alarm_id": "ALM-000002", "inspected_at": 1792635300, "inspector_role": "QUALITY", "finding": "RISK_CONFIRMED", "notes": "Reviewed HIGH_OCCUPANCY and identified 10 overlapping lots."},
+{"inspection_id": "INSP-000003", "alarm_id": "ALM-000003", "inspected_at": 1792635120, "inspector_role": "QUALITY", "finding": "RISK_CONFIRMED", "notes": "Reviewed HUMIDITY_EXCURSION and identified 11 overlapping lots."},
+{"inspection_id": "INSP-000004", "alarm_id": "ALM-000004", "inspected_at": 1792631220, "inspector_role": "QUALITY", "finding": "RISK_CONFIRMED", "notes": "Reviewed INCOMPATIBLE_STORAGE and identified 1 overlapping lots."},
+{"inspection_id": "INSP-000005", "alarm_id": "ALM-000005", "inspected_at": 1792637220, "inspector_role": "MAINTENANCE", "finding": "TELEMETRY_UNVERIFIED", "notes": "Missing samples prevent verification of storage conditions."},
+{"inspection_id": "INSP-000006", "alarm_id": "ALM-000006", "inspected_at": 1792635120, "inspector_role": "QUALITY", "finding": "RISK_CONFIRMED", "notes": "Reviewed TEMP_EXCURSION and identified 9 overlapping lots."}
+]

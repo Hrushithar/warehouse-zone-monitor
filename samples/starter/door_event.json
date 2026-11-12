@@ -1,0 +1,14 @@
+[
+{"door_event_id": "DOR-000001", "zone_id": "ZONE-WH-001-001", "door_code": "DOOR-01", "occurred_at": 1792630800, "event_type": "OPEN"},
+{"door_event_id": "DOR-000002", "zone_id": "ZONE-WH-001-001", "door_code": "DOOR-01", "occurred_at": 1792631040, "event_type": "CLOSE"},
+{"door_event_id": "DOR-000003", "zone_id": "ZONE-WH-001-001", "door_code": "DOOR-01", "occurred_at": 1792645200, "event_type": "OPEN"},
+{"door_event_id": "DOR-000004", "zone_id": "ZONE-WH-001-001", "door_code": "DOOR-01", "occurred_at": 1792645277, "event_type": "CLOSE"},
+{"door_event_id": "DOR-000005", "zone_id": "ZONE-WH-001-002", "door_code": "DOOR-01", "occurred_at": 1792630800, "event_type": "OPEN"},
+{"door_event_id": "DOR-000006", "zone_id": "ZONE-WH-001-002", "door_code": "DOOR-01", "occurred_at": 1792630883, "event_type": "CLOSE"},
+{"door_event_id": "DOR-000007", "zone_id": "ZONE-WH-001-002", "door_code": "DOOR-01", "occurred_at": 1792645200, "event_type": "OPEN"},
+{"door_event_id": "DOR-000008", "zone_id": "ZONE-WH-001-002", "door_code": "DOOR-01", "occurred_at": 1792645262, "event_type": "CLOSE"},
+{"door_event_id": "DOR-000009", "zone_id": "ZONE-WH-001-003", "door_code": "DOOR-01", "occurred_at": 1792630800, "event_type": "OPEN"},
+{"door_event_id": "DOR-000010", "zone_id": "ZONE-WH-001-003", "door_code": "DOOR-01", "occurred_at": 1792630884, "event_type": "CLOSE"},
+{"door_event_id": "DOR-000011", "zone_id": "ZONE-WH-001-003", "door_code": "DOOR-01", "occurred_at": 1792645200, "event_type": "OPEN"},
+{"door_event_id": "DOR-000012", "zone_id": "ZONE-WH-001-003", "door_code": "DOOR-01", "occurred_at": 1792645239, "event_type": "CLOSE"}
+]

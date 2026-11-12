@@ -203,7 +203,24 @@ def detect(db):
     return sorted(alarms), diagnostics
 
 
-def persist(db, alarms):
+def diagnostics_from_db(db):
+    return [
+        {
+            "decision": issue_type,
+            "zone_id": zone_id,
+            "source_id": source_id,
+            "started_at": started_at,
+            "window_end_at": window_end_at,
+        }
+        for issue_type, zone_id, source_id, started_at, window_end_at in db.execute("""
+            SELECT issue_type, zone_id, COALESCE(sensor_id, door_event_id),
+                   started_at, window_end_at
+            FROM diagnostic ORDER BY diagnostic_id
+        """)
+    ]
+
+
+def persist(db, alarms, diagnostics=()):
     for index, (kind, zone, start, end, detected, reason, source) in enumerate(alarms, 1):
         alarm_id = f"ALM-{index:06d}"
         sensor_id = door_id = storage_id = None
@@ -244,6 +261,27 @@ def persist(db, alarms):
             "impact": impact, "storage_id": storage_id,
         })
 
+    ordered_diagnostics = sorted(
+        diagnostics,
+        key=lambda row: (
+            row["decision"], row["zone_id"], row["source_id"],
+            row["started_at"], row["window_end_at"],
+        ),
+    )
+    for index, row in enumerate(ordered_diagnostics, 1):
+        sensor_id = door_event_id = None
+        if row["decision"] == "INVALID_DOOR_SEQUENCE":
+            door_event_id = row["source_id"]
+        else:
+            sensor_id = row["source_id"]
+        db.execute(
+            "INSERT INTO diagnostic VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                f"DGN-{index:06d}", row["decision"], row["zone_id"],
+                sensor_id, door_event_id, row["started_at"], row["window_end_at"],
+            ),
+        )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Detect warehouse risks from a scenario database.")
@@ -265,11 +303,12 @@ def main():
                 scenario.backup(db)
                 db.execute("PRAGMA foreign_keys = ON")
                 with db:
-                    alarms, diagnostics = detect(db)
-                    persist(db, alarms)
+                    alarms, detected_diagnostics = detect(db)
+                    persist(db, alarms, detected_diagnostics)
                     if db.execute("PRAGMA foreign_key_check").fetchone():
                         raise ValueError("Monitoring produced a broken foreign key.")
                 link_count = db.execute("SELECT COUNT(*) FROM alarm_lot").fetchone()[0]
+                diagnostics = diagnostics_from_db(db)
         diagnostic_path.write_text(json.dumps(diagnostics, indent=2) + "\n", encoding="utf-8")
     except Exception:
         destination.unlink(missing_ok=True)

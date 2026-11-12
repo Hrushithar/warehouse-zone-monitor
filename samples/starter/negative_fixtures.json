@@ -1,0 +1,40 @@
+[
+  {
+    "expected_evaluation": {
+      "missed_decisions": 1
+    },
+    "ground_truth": {
+      "case_id": "CASE-005",
+      "expected_decision": "SENSOR_GAP",
+      "issue_type": "SENSOR_OUTAGE",
+      "source_id": "SNS-ZONE-WH-001-001-HUMIDITY-01",
+      "started_at": 1792636200,
+      "window_end_at": 1792637100,
+      "zone_id": "ZONE-WH-001-001"
+    },
+    "issue_type": "READING_GAP_TREATED_AS_NORMAL",
+    "mutation": {
+      "omit_alarm_id": "ALM-000005"
+    },
+    "stage": "alarm detection"
+  },
+  {
+    "expected_evaluation": {
+      "missing_lot_links": 1
+    },
+    "ground_truth": {
+      "alarm_id": "ALM-000004",
+      "impact_type": "PLACEMENT_VIOLATION",
+      "lot_id": "LOT-2026-000001",
+      "overlap_seconds": 14400
+    },
+    "issue_type": "ALARM_MISSING_AFFECTED_LOT",
+    "mutation": {
+      "omit_alarm_lot": [
+        "ALM-000004",
+        "LOT-2026-000001"
+      ]
+    },
+    "stage": "affected-lot linkage"
+  }
+]

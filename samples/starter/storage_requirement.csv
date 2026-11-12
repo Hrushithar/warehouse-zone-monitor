@@ -1,0 +1,4 @@
+requirement_id,product_code,required_zone_type,temp_min_c,temp_max_c,humidity_min_pct,humidity_max_pct,effective_from,effective_to
+REQ-001,CHILLED_GOODS,COLD,2.0,8.0,45.0,75.0,1792627200,
+REQ-002,DRY_GOODS,AMBIENT,15.0,25.0,30.0,60.0,1792627200,
+REQ-003,HEAT_TOLERANT_GOODS,HOT,28.0,38.0,25.0,55.0,1792627200,

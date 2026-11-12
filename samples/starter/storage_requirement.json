@@ -1,0 +1,5 @@
+[
+{"requirement_id": "REQ-001", "product_code": "CHILLED_GOODS", "required_zone_type": "COLD", "temp_min_c": 2.0, "temp_max_c": 8.0, "humidity_min_pct": 45.0, "humidity_max_pct": 75.0, "effective_from": 1792627200, "effective_to": null},
+{"requirement_id": "REQ-002", "product_code": "DRY_GOODS", "required_zone_type": "AMBIENT", "temp_min_c": 15.0, "temp_max_c": 25.0, "humidity_min_pct": 30.0, "humidity_max_pct": 60.0, "effective_from": 1792627200, "effective_to": null},
+{"requirement_id": "REQ-003", "product_code": "HEAT_TOLERANT_GOODS", "required_zone_type": "HOT", "temp_min_c": 28.0, "temp_max_c": 38.0, "humidity_min_pct": 25.0, "humidity_max_pct": 55.0, "effective_from": 1792627200, "effective_to": null}
+]

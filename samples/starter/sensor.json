@@ -1,0 +1,17 @@
+[
+{"sensor_id": "SNS-ZONE-WH-001-001-HUMIDITY-01", "sensor_type": "HUMIDITY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-001-HUMIDITY-02", "sensor_type": "HUMIDITY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-001-OCCUPANCY-01", "sensor_type": "OCCUPANCY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-001-TEMP-01", "sensor_type": "TEMP", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-001-TEMP-02", "sensor_type": "TEMP", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-002-HUMIDITY-01", "sensor_type": "HUMIDITY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-002-HUMIDITY-02", "sensor_type": "HUMIDITY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-002-OCCUPANCY-01", "sensor_type": "OCCUPANCY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-002-TEMP-01", "sensor_type": "TEMP", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-002-TEMP-02", "sensor_type": "TEMP", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-003-HUMIDITY-01", "sensor_type": "HUMIDITY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-003-HUMIDITY-02", "sensor_type": "HUMIDITY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-003-OCCUPANCY-01", "sensor_type": "OCCUPANCY", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-003-TEMP-01", "sensor_type": "TEMP", "sample_interval_seconds": 300},
+{"sensor_id": "SNS-ZONE-WH-001-003-TEMP-02", "sensor_type": "TEMP", "sample_interval_seconds": 300}
+]

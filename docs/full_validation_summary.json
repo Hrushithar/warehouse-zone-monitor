@@ -37,6 +37,7 @@
     "alarm": 6,
     "alarm_lot": 32,
     "alarm_state_event": 13,
+    "diagnostic": 2,
     "door_event": 8400,
     "inspection": 6,
     "inventory_lot": 10000,

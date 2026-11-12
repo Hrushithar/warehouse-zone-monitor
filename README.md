@@ -10,7 +10,7 @@ This pipeline:
 
 1. Generates a valid synthetic warehouse baseline: zones, sensors, effective sensor assignments, readings, door events, product requirements, lots, and lot dwell intervals.
 2. Injects eight labelled scenarios into a copy of that baseline and writes the labels to a separate ground-truth file.
-3. Replays the observations with fixed rules. Confirmed incidents become `alarm` rows; drift and ambiguous assignment findings remain diagnostics.
+3. Replays the observations with fixed rules. Confirmed incidents become `alarm` rows; drift and ambiguous assignment findings become persisted `diagnostic` rows.
 4. Intersects each alarm's half-open interval with same-zone lot dwell intervals. Positive overlaps become `alarm_lot` rows with the exact overlap in seconds and an impact classification.
 5. Appends alarm state events, inspections, and simulated remediation. These records demonstrate the response model; they do not operate real equipment or inventory.
 6. Scores the result against the independent labels, validates relational and lifecycle invariants, and exports reviewable CSV, JSON, and SQL artifacts.
@@ -59,7 +59,7 @@ source .venv/bin/activate
 python -m unittest discover -s tests -v
 ```
 
-The test command should report six passing tests and `OK`. No `pip install` step is required.
+The test command should report ten passing tests and `OK`. No `pip install` step is required.
 
 ## Run the pipeline in order
 
@@ -100,11 +100,11 @@ The full profile produces the same 6 alarms and 2 diagnostics. The committed ful
 | Stage | Reads | Writes | Success looks like |
 |---|---|---|---|
 | `generate.py` | `schema.sql`, profile, seed | `generated/<profile>.sqlite` | Prints profile row counts, seed `20261022`, and the database path. This is the clean baseline. |
-| `inject_scenarios.py` | Baseline database | `generated/<profile>_scenario.sqlite`, `generated/<profile>_ground_truth.json` | Prints `Labelled scenarios: 8`. The baseline remains unchanged. |
-| `monitor.py` | Scenario database | `generated/<profile>_monitored.sqlite`, `generated/<profile>_diagnostics.json` | Prints 6 alarms and 2 diagnostics, plus 44 starter or 32 full affected-lot links. |
+| `inject_scenarios.py` | Baseline database | `generated/<profile>_scenario.sqlite`, `generated/<profile>_ground_truth.json`, `generated/<profile>_generation_provenance.json` | Prints `Labelled scenarios: 8`. Ground truth and generation provenance remain separate, and the baseline remains unchanged. |
+| `monitor.py` | Scenario database | `generated/<profile>_monitored.sqlite`, `generated/<profile>_diagnostics.json` | Transactionally persists 6 alarms and 2 stable-ID diagnostics, derives the compatible JSON from those rows, and prints 44 starter or 32 full affected-lot links. |
 | `respond.py` | Monitored database | Appends state, inspection, and remediation rows to that database | Prints 6 inspections and one resolved telemetry alarm. Responses are simulated. |
 | `evaluate.py` | Monitored database, ground truth, diagnostics | `generated/<profile>_evaluation.json` | Exits zero with `"passed": true`; decisions and independently recomputed lot links have no misses or unexpected rows. |
-| `export_data.py` | Responded database, ground truth, diagnostics, schema, seed | `generated/<profile>_export/` | Prints `Validation passed`; the directory contains table exports, evidence reports, and a restorable `seed.sql`. |
+| `export_data.py` | Responded database, ground truth, diagnostics, provenance, schema, seed | `generated/<profile>_export/` | Re-evaluates the current database, prints `Validation passed`, and writes table exports, evidence reports, provenance, and a restorable `seed.sql`. |
 
 The order matters: injection copies the baseline, monitoring copies the scenario database, response mutates the monitored copy, evaluation reads those results, and export validates the completed replay.
 
@@ -154,9 +154,11 @@ SQL
 
 The fixed starter run shows `ALM-000005` for humidity sensor `SNS-ZONE-WH-001-001-HUMIDITY-01`: three expected five-minute samples are absent from 02:30 through the exclusive end at 02:45 UTC. Nine cold-zone lots overlap that interval. Eight overlap all 900 seconds; `LOT-2026-000003`, which exits at 02:35, overlaps 300 seconds. Every link is `TELEMETRY_UNVERIFIED`, meaning conditions cannot be confirmed rather than that a threshold breach was observed. `INSP-000005` has the same finding and a `REPAIR_SENSOR` equipment action. The recovered reading at the gap's end allows the response stage to append `OPEN`, `ACKNOWLEDGED`, and `RESOLVED` state events while retaining the lot-impact history.
 
+The scenario injector removes those three reading IDs and appends three readings after the original observation period so the profile retains exactly 1,440 readings (1,000,000 for full). The separate `generation_provenance.json` records every omitted and appended ID and timestamp plus that rationale. It is exported and checksummed but is never detector input or incident ground truth; see the [committed full provenance](docs/full_generation_provenance.json).
+
 ## Validation, negative cases, and reproducibility
 
-`inject_scenarios.py` writes ground truth before detection. The monitor never reads it. The eight labels cover six persisted alarms—temperature, humidity, occupancy, door duration, telemetry gap, and incompatible storage—and two diagnostics—sensor drift and ambiguous assignment. The evaluator compares decision type, zone, source, start, and exclusive end as a multiset. Separately, it reconstructs expected lot links and overlap seconds from `alarm` and `lot_storage`, then compares the complete `(alarm_id, lot_id, overlap_seconds, impact_type)` set.
+`inject_scenarios.py` writes ground truth before detection. The monitor never reads it. The eight labels cover six persisted alarms—temperature, humidity, occupancy, door duration, telemetry gap, and incompatible storage—and two persisted diagnostics—sensor drift and ambiguous assignment. The evaluator verifies that `diagnostics.json` matches the diagnostic table, then counts the persisted rows exactly once. It compares decision type, zone, source, start, and exclusive end as a multiset. Separately, it reconstructs expected lot links and overlap seconds from `alarm` and `lot_storage`, then compares the complete `(alarm_id, lot_id, overlap_seconds, impact_type)` set.
 
 ### Four required negative cases
 
@@ -171,26 +173,25 @@ Cases 1 and 2 are deterministic input scenarios labelled by `inject_scenarios.py
 
 Additional coverage protects against false positives: a clean generated baseline must produce no alarms or diagnostics, and a reading exactly at the 8 °C limit followed by only two high samples must not produce a temperature alarm.
 
+The regression suite also inserts a schema-valid quarantine outside its lot's dwell and confirms `lot_remediation_during_dwell` fails. A second test mutates a previously passing database and confirms export validation recomputes evaluation from current rows rather than trusting an older passing evaluation artifact.
+
 Evidence included in Git:
 
 - [Full validation summary](docs/full_validation_summary.json): all integrity, key, foreign-key, volume, date-order, source-zone, dwell, lifecycle, and evaluation checks passed.
 - [Full source manifest](docs/full_source_manifest.json): fixed seed, synthetic provenance, row counts, and SHA-256 values for exported files.
-- [Full reproducibility report](docs/full_reproducibility.json): two independent full runs on Python 3.14.7 had matching row counts and all 33 compared export-file checksums.
+- [Full reproducibility report](docs/full_reproducibility.json): generated by `reproduce.py`; two independent full runs on Python 3.14.7 had matching row counts and all 36 compared export-file checksums.
+- [Full generation provenance](docs/full_generation_provenance.json): exact gap-fixture omissions, appended replacements, timestamps, and row-count-preservation rationale.
 - [Full negative fixtures](docs/full_negative_fixtures.json): the two deliberate output omissions described above.
 - [Regression tests](tests/test_pipeline.py) and [schema](schema.sql): executable behavior and database constraints.
+- [Starter reviewer sample](samples/starter/README.md): a complete validated 665 KB starter export with CSV, JSON, provenance, and restorable SQL, but no SQLite database.
 
-To reproduce the manifest comparison, make two fresh clones, run the six full-profile commands in each with seed `20261022`, and compare the completed manifests:
+Run the automated comparison from a clean checkout with:
 
 ```bash
-git clone https://github.com/Hrushithar/warehouse-zone-monitor.git warehouse-zone-monitor-run-a
-git clone https://github.com/Hrushithar/warehouse-zone-monitor.git warehouse-zone-monitor-run-b
-
-# In each clone, create/activate a virtual environment and run the six full commands above.
-cmp warehouse-zone-monitor-run-a/generated/full_export/source_manifest.json \
-    warehouse-zone-monitor-run-b/generated/full_export/source_manifest.json
+python reproduce.py --profile full --seed 20261022
 ```
 
-`cmp` exits silently with status 0 when the manifests match. Because each manifest contains the row counts and SHA-256 digest of every other export artifact, equality verifies the exported content. Use the same Python version in both clones; the committed comparison used Python 3.14.7.
+`reproduce.py` uses `sys.executable` to run all six stages twice in isolated temporary directories, leaving existing profile outputs untouched. It compares every table row count and every checksum in the two source manifests, writes `generated/full_reproducibility.json`, prints exact differences on failure, and records the seed and Python version. The committed successful report compares 15 tables and 36 exported-file checksums with no differences.
 
 Restore an exported SQL snapshot into a new database and verify it with:
 
@@ -199,21 +200,22 @@ sqlite3 -bail generated/restored.sqlite < generated/full_export/seed.sql
 sqlite3 -header -column generated/restored.sqlite <<'SQL'
 SELECT COUNT(*) AS sensor_readings FROM sensor_reading;
 SELECT COUNT(*) AS inventory_lots FROM inventory_lot;
+SELECT COUNT(*) AS diagnostics FROM diagnostic;
 PRAGMA integrity_check;
 PRAGMA foreign_key_check;
 SQL
 ```
 
-For the full export, the counts should be `1000000` and `10000`; `integrity_check` should return `ok`, and `foreign_key_check` should return no rows. Choose a database path that does not already contain these tables.
+For the full export, the counts should be `1000000`, `10000`, and `2`; `integrity_check` should return `ok`, and `foreign_key_check` should return no rows. Choose a database path that does not already contain these tables.
 
 ## Deliverables and limits
 
 Local runtime artifacts are intentionally kept under `generated/` and out of Git:
 
 - `generated/<profile>.sqlite`, `<profile>_scenario.sqlite`, and `<profile>_monitored.sqlite`
-- `generated/<profile>_ground_truth.json`, `<profile>_diagnostics.json`, and `<profile>_evaluation.json`
-- `generated/<profile>_export/`, containing CSV and JSON for all 14 tables plus `seed.sql`, `ground_truth.json`, `diagnostics.json`, `negative_fixtures.json`, `validation_summary.json`, and `source_manifest.json`
+- `generated/<profile>_ground_truth.json`, `<profile>_generation_provenance.json`, `<profile>_diagnostics.json`, `<profile>_evaluation.json`, and `<profile>_reproducibility.json`
+- `generated/<profile>_export/`, containing CSV and JSON for all 15 tables plus `seed.sql`, `ground_truth.json`, `generation_provenance.json`, `diagnostics.json`, `negative_fixtures.json`, `validation_summary.json`, and `source_manifest.json`
 
-Only the compact full-run evidence reports listed above are committed. The generated datasets themselves are not.
+The compact full-run evidence reports and bounded starter export listed above are committed. Full generated datasets and all SQLite databases remain outside Git.
 
 This is a batch replay over synthetic data, not a streaming service or control system, and every response is simulated. Gap detection currently finds cadence-aligned missing samples only between two observed readings. It does not infer leading silence, trailing silence, or a sensor that is completely silent because the current schema has no independent expected monitoring window. A production system would need that schedule, ingestion-time/watermark handling, durable streaming state, notification delivery, authentication, and integrations with warehouse and quality systems.

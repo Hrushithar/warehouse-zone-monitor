@@ -1,0 +1,16 @@
+[
+  {
+    "decision": "AMBIGUOUS_SENSOR_ZONE",
+    "source_id": "SNS-ZONE-WH-001-001-HUMIDITY-02",
+    "started_at": 1792639200,
+    "window_end_at": 1792640400,
+    "zone_id": "ZONE-WH-001-003"
+  },
+  {
+    "decision": "SENSOR_DRIFT",
+    "source_id": "SNS-ZONE-WH-001-002-TEMP-02",
+    "started_at": 1792638000,
+    "window_end_at": 1792638900,
+    "zone_id": "ZONE-WH-001-002"
+  }
+]

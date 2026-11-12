@@ -1,0 +1,50 @@
+{
+  "artifact_version": 1,
+  "events": [
+    {
+      "appended_readings": [
+        {
+          "observed_at": 1792656000,
+          "observed_at_utc": "2026-10-22T08:00:00Z",
+          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T080000Z"
+        },
+        {
+          "observed_at": 1792656300,
+          "observed_at_utc": "2026-10-22T08:05:00Z",
+          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T080500Z"
+        },
+        {
+          "observed_at": 1792656600,
+          "observed_at_utc": "2026-10-22T08:10:00Z",
+          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T081000Z"
+        }
+      ],
+      "gap_started_at": 1792636200,
+      "gap_window_end_at": 1792637100,
+      "omitted_readings": [
+        {
+          "observed_at": 1792636200,
+          "observed_at_utc": "2026-10-22T02:30:00Z",
+          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T023000Z"
+        },
+        {
+          "observed_at": 1792636500,
+          "observed_at_utc": "2026-10-22T02:35:00Z",
+          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T023500Z"
+        },
+        {
+          "observed_at": 1792636800,
+          "observed_at_utc": "2026-10-22T02:40:00Z",
+          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T024000Z"
+        }
+      ],
+      "operation": "CREATE_INTERNAL_SENSOR_GAP",
+      "reason": "Append the same number of readings after the baseline observation period so the scenario retains the exact profile sensor_reading count.",
+      "sensor_id": "SNS-ZONE-WH-001-001-HUMIDITY-01",
+      "sensor_reading_count_after": 1440,
+      "sensor_reading_count_before": 1440
+    }
+  ],
+  "profile": "starter",
+  "purpose": "Record deterministic scenario-generation mutations; not detector input or incident ground truth."
+}

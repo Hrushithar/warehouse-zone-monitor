@@ -1,0 +1,4 @@
+zone_id,warehouse_id,name,zone_type,occupancy_limit,door_open_limit_seconds
+ZONE-WH-001-001,WH-001,COLD 001,COLD,8,120
+ZONE-WH-001-002,WH-001,AMBIENT 002,AMBIENT,8,120
+ZONE-WH-001-003,WH-001,HOT 003,HOT,8,120

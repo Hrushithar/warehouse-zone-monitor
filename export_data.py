@@ -10,12 +10,13 @@ from pathlib import Path
 from evaluate import evaluate
 
 from generate import PROFILES, ROOT, START_TS
+from monitor import diagnostics_from_db
 from negative_fixtures import build_negative_fixtures
 
 TABLES = (
     "warehouse", "zone", "sensor", "storage_requirement",
     "sensor_zone_assignment", "sensor_reading", "door_event",
-    "inventory_lot", "lot_storage", "alarm", "alarm_lot",
+    "inventory_lot", "lot_storage", "alarm", "alarm_lot", "diagnostic",
     "alarm_state_event", "inspection", "remediation",
 )
 
@@ -171,6 +172,11 @@ def validate(db, profile, evaluation):
     }
 
 
+def validation_report(db, profile, truth, diagnostics):
+    """Re-evaluate the live database; never trust a prior evaluation artifact."""
+    return validate(db, profile, evaluate(db, truth, diagnostics))
+
+
 def export_tables(db, destination):
     with (destination / "seed.sql").open("w", encoding="utf-8") as seed:
         seed.write((ROOT / "schema.sql").read_text(encoding="utf-8"))
@@ -214,10 +220,13 @@ def main():
 
     truth = json.loads((generated / f"{args.profile}_ground_truth.json").read_text(encoding="utf-8"))
     diagnostics = json.loads((generated / f"{args.profile}_diagnostics.json").read_text(encoding="utf-8"))
+    provenance = json.loads(
+        (generated / f"{args.profile}_generation_provenance.json").read_text(encoding="utf-8")
+    )
 
     with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
         db.execute("BEGIN")
-        report = validate(db, args.profile, evaluate(db, truth, diagnostics))
+        report = validation_report(db, args.profile, truth, diagnostics)
         if not report["passed"]:
             print(json.dumps(report, indent=2))
             raise SystemExit("Validation failed.")
@@ -228,7 +237,8 @@ def main():
             export_tables(db, staged)
             write_json(staged / "validation_summary.json", report)
             write_json(staged / "ground_truth.json", truth)
-            write_json(staged / "diagnostics.json", diagnostics)
+            write_json(staged / "diagnostics.json", diagnostics_from_db(db))
+            write_json(staged / "generation_provenance.json", provenance)
             write_json(staged / "negative_fixtures.json", build_negative_fixtures(db, truth))
             write_json(staged / "source_manifest.json", {
                 "profile": args.profile,
@@ -238,8 +248,8 @@ def main():
                 "generator": f"python generate.py --profile {args.profile} --seed {args.seed}",
                 "transformations": [
                     "Generate valid synthetic master and event records",
-                    "Inject deterministic scenarios and write separate ground truth",
-                    "Detect risks and derive lot overlap, inspections, and remediation",
+                    "Inject deterministic scenarios and write separate ground truth and generation provenance",
+                    "Detect risks, persist diagnostics, and derive lot overlap, inspections, and remediation",
                 ],
                 "row_counts": report["row_counts"],
                 "sha256": {path.name: sha256(path) for path in sorted(staged.iterdir())},

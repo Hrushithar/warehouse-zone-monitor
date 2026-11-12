@@ -1,14 +1,21 @@
 {
+  "differences": {
+    "export_checksums": {},
+    "row_counts": {}
+  },
   "export_checksums_match": true,
-  "export_files_compared": 33,
+  "export_files_compared": 36,
   "independent_runs": 2,
-  "manifest_sha256": "08cca4cbbc17c42ff2e9bf5a62d97550ab7a416888ff6038e7ffa3a7833b55a0",
+  "manifest_sha256": "cd46b4ddd62bda812cea9c2233246506fd943cb709dfab5d510344e05e2fe7f7",
+  "passed": true,
   "profile": "full",
+  "python_executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
   "python_version": "3.14.7",
   "row_counts": {
     "alarm": 6,
     "alarm_lot": 32,
     "alarm_state_event": 13,
+    "diagnostic": 2,
     "door_event": 8400,
     "inspection": 6,
     "inventory_lot": 10000,
@@ -22,5 +29,9 @@
     "zone": 100
   },
   "row_counts_match": true,
+  "run_manifest_sha256": [
+    "cd46b4ddd62bda812cea9c2233246506fd943cb709dfab5d510344e05e2fe7f7",
+    "cd46b4ddd62bda812cea9c2233246506fd943cb709dfab5d510344e05e2fe7f7"
+  ],
   "seed": 20261022
 }

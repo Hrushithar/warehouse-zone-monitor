@@ -1,0 +1,5 @@
+[
+{"zone_id": "ZONE-WH-001-001", "warehouse_id": "WH-001", "name": "COLD 001", "zone_type": "COLD", "occupancy_limit": 8, "door_open_limit_seconds": 120},
+{"zone_id": "ZONE-WH-001-002", "warehouse_id": "WH-001", "name": "AMBIENT 002", "zone_type": "AMBIENT", "occupancy_limit": 8, "door_open_limit_seconds": 120},
+{"zone_id": "ZONE-WH-001-003", "warehouse_id": "WH-001", "name": "HOT 003", "zone_type": "HOT", "occupancy_limit": 8, "door_open_limit_seconds": 120}
+]

@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from contextlib import closing
 
 from generate import ROOT
+from monitor import diagnostics_from_db
 
 
 def signature(row, decision_field):
@@ -21,7 +22,17 @@ def score_decisions(db, truth, diagnostics):
                started_at, window_end_at
         FROM alarm
     """))
-    observed.update(signature(row, "decision") for row in diagnostics)
+    persisted_diagnostics = diagnostics_from_db(db)
+    if diagnostics is not None:
+        file_signatures = Counter(signature(row, "decision") for row in diagnostics)
+        persisted_signatures = Counter(
+            signature(row, "decision") for row in persisted_diagnostics
+        )
+        if file_signatures != persisted_signatures:
+            raise ValueError("diagnostics.json does not match persisted diagnostic records")
+    # Persisted diagnostics are the single source counted during evaluation. The
+    # compatible JSON artifact is checked above but never added a second time.
+    observed.update(signature(row, "decision") for row in persisted_diagnostics)
 
     tp = sum((expected & observed).values())
     fp = sum((observed - expected).values())

@@ -132,6 +132,26 @@ CREATE TABLE alarm_lot (
     PRIMARY KEY (alarm_id, lot_id)
 );
 
+CREATE TABLE diagnostic (
+    diagnostic_id TEXT PRIMARY KEY NOT NULL,
+    issue_type TEXT NOT NULL CHECK (issue_type IN (
+        'SENSOR_DRIFT', 'AMBIGUOUS_SENSOR_ZONE', 'INVALID_DOOR_SEQUENCE'
+    )),
+    zone_id TEXT NOT NULL REFERENCES zone(zone_id),
+    sensor_id TEXT REFERENCES sensor(sensor_id),
+    door_event_id TEXT REFERENCES door_event(door_event_id),
+    started_at INTEGER NOT NULL,
+    window_end_at INTEGER NOT NULL,
+    CHECK (window_end_at > started_at),
+    CHECK (
+        (issue_type IN ('SENSOR_DRIFT', 'AMBIGUOUS_SENSOR_ZONE')
+            AND sensor_id IS NOT NULL AND door_event_id IS NULL)
+        OR
+        (issue_type = 'INVALID_DOOR_SEQUENCE'
+            AND sensor_id IS NULL AND door_event_id IS NOT NULL)
+    )
+);
+
 CREATE TABLE alarm_state_event (
     alarm_id TEXT NOT NULL REFERENCES alarm(alarm_id),
     event_seq INTEGER NOT NULL CHECK (event_seq > 0),

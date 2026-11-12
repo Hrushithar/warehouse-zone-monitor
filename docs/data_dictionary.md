@@ -91,6 +91,13 @@ A threshold breach means observed values were outside a configured range for at 
 | `alarm_lot` | `lot_id` | TEXT | Yes | FK → `inventory_lot.lot_id`; composite PK with `alarm_id`. |
 | `alarm_lot` | `overlap_seconds` | INTEGER | Yes | Sum of positive same-zone dwell/alarm intersections, in seconds; SQLite requires `> 0`. |
 | `alarm_lot` | `impact_type` | TEXT | Yes | `POTENTIAL_EXPOSURE`, `TELEMETRY_UNVERIFIED`, or `PLACEMENT_VIOLATION`; enforced by `CHECK`. |
+| `diagnostic` | `diagnostic_id` | TEXT | Yes | PK; stable diagnostic identifier, generated as `DGN-000001` after deterministic signature sorting. |
+| `diagnostic` | `issue_type` | TEXT | Yes | `SENSOR_DRIFT`, `AMBIGUOUS_SENSOR_ZONE`, or `INVALID_DOOR_SEQUENCE`; enforced by `CHECK`. |
+| `diagnostic` | `zone_id` | TEXT | Yes | FK → `zone.zone_id`; zone associated with the finding. |
+| `diagnostic` | `sensor_id` | TEXT | No | FK → `sensor.sensor_id`; required for drift and ambiguous-assignment findings and forbidden for invalid door sequences. |
+| `diagnostic` | `door_event_id` | TEXT | No | FK → `door_event.door_event_id`; required for an invalid door sequence and forbidden for sensor diagnostics. |
+| `diagnostic` | `started_at` | INTEGER | Yes | Inclusive diagnostic interval start, UTC Unix seconds. |
+| `diagnostic` | `window_end_at` | INTEGER | Yes | Exclusive diagnostic interval end, UTC Unix seconds; SQLite requires it after `started_at`. |
 | `alarm_state_event` | `alarm_id` | TEXT | Yes | FK → `alarm.alarm_id`; composite PK with `event_seq`. |
 | `alarm_state_event` | `event_seq` | INTEGER | Yes | Positive per-alarm ordinal; composite PK with `alarm_id`; replay uses 1, 2, and optionally 3. |
 | `alarm_state_event` | `state` | TEXT | Yes | `OPEN`, `ACKNOWLEDGED`, or `RESOLVED`; enforced by `CHECK`. Sequence and timestamp order are validated by code. |
@@ -121,6 +128,7 @@ A threshold breach means observed values were outside a configured range for at 
 - `zone` 1:N `alarm`; each alarm belongs to one zone.
 - `sensor`, `door_event`, and `lot_storage` each have a possible 1:N source relationship to `alarm`. Exactly one source column is populated as determined by `alarm_type`.
 - `alarm` N:M `inventory_lot` through `alarm_lot`. An alarm can have no lot links when no inventory overlaps its window. A lot can be linked to many alarms.
+- `zone` 1:N `diagnostic`; each diagnostic belongs to one zone. `sensor` 1:N `diagnostic` for drift and ambiguous-assignment findings, while `door_event` 1:N `diagnostic` supplies the source for invalid sequences. The source-type `CHECK` requires exactly the applicable reference.
 - `alarm` 1:N `alarm_state_event`; rows are append-only history and the greatest `event_seq` is the current state.
 - `alarm` 1:N `inspection`; the current replay writes one inspection per alarm, while the schema permits more.
 - `inspection` 1:N `remediation`; an inspection can produce no actions or several actions.
@@ -137,6 +145,7 @@ With `PRAGMA foreign_keys = ON`, SQLite enforces:
 - row-local ordering for assignment, requirement, dwell, and alarm intervals;
 - requirement range ordering and humidity bounds;
 - the exactly-one-source pattern for each `alarm_type`;
+- the applicable sensor-or-door source pattern for each diagnostic issue type;
 - whether an action type requires or forbids `remediation.lot_id`.
 
 SQLite does not infer business correctness merely because a value has type `REAL` or `INTEGER`; SQLite uses dynamic typing, and several cross-row rules require code-level validation.
@@ -147,6 +156,7 @@ The Python stages add rules that are not expressible in the current row-local sc
 
 - humidity readings are in 0–100% RH; occupancy is a nonnegative whole number; readings align to the sensor cadence and replay start;
 - exactly one effective zone assignment exists when attributing a sensor reading or sensor-sourced alarm; conflicting cross-zone assignments without a rationale are diagnosed;
+- diagnostic IDs are assigned after deterministic signature sorting; diagnostics are inserted in the same transaction as alarms, and the compatible `diagnostics.json` is derived from those persisted rows;
 - temperature/humidity limits come from the one active requirement for the zone type at replay start; threshold alarms need three consecutive breaches; drift uses three consecutive peer differences strictly greater than 1.5 °C;
 - door events follow a valid chronological open/close sequence, and duration alarms are strictly over the zone limit;
 - requirement versions are effective when a lot is received; dwell starts are not before receipt; dwells for one lot do not overlap;

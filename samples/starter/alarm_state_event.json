@@ -1,0 +1,15 @@
+[
+{"alarm_id": "ALM-000001", "event_seq": 1, "state": "OPEN", "occurred_at": 1792630921, "actor_role": "SYSTEM"},
+{"alarm_id": "ALM-000001", "event_seq": 2, "state": "ACKNOWLEDGED", "occurred_at": 1792630981, "actor_role": "OPERATOR"},
+{"alarm_id": "ALM-000002", "event_seq": 1, "state": "OPEN", "occurred_at": 1792635000, "actor_role": "SYSTEM"},
+{"alarm_id": "ALM-000002", "event_seq": 2, "state": "ACKNOWLEDGED", "occurred_at": 1792635060, "actor_role": "OPERATOR"},
+{"alarm_id": "ALM-000003", "event_seq": 1, "state": "OPEN", "occurred_at": 1792635000, "actor_role": "SYSTEM"},
+{"alarm_id": "ALM-000003", "event_seq": 2, "state": "ACKNOWLEDGED", "occurred_at": 1792635060, "actor_role": "OPERATOR"},
+{"alarm_id": "ALM-000004", "event_seq": 1, "state": "OPEN", "occurred_at": 1792631100, "actor_role": "SYSTEM"},
+{"alarm_id": "ALM-000004", "event_seq": 2, "state": "ACKNOWLEDGED", "occurred_at": 1792631160, "actor_role": "OPERATOR"},
+{"alarm_id": "ALM-000005", "event_seq": 1, "state": "OPEN", "occurred_at": 1792637100, "actor_role": "SYSTEM"},
+{"alarm_id": "ALM-000005", "event_seq": 2, "state": "ACKNOWLEDGED", "occurred_at": 1792637160, "actor_role": "OPERATOR"},
+{"alarm_id": "ALM-000005", "event_seq": 3, "state": "RESOLVED", "occurred_at": 1792637340, "actor_role": "MAINTENANCE"},
+{"alarm_id": "ALM-000006", "event_seq": 1, "state": "OPEN", "occurred_at": 1792635000, "actor_role": "SYSTEM"},
+{"alarm_id": "ALM-000006", "event_seq": 2, "state": "ACKNOWLEDGED", "occurred_at": 1792635060, "actor_role": "OPERATOR"}
+]
