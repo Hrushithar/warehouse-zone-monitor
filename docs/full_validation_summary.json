@@ -1,0 +1,49 @@
+{
+  "checks": {
+    "alarm_lifecycle": true,
+    "dwell_date_order": true,
+    "fixture_decisions_and_lot_links": true,
+    "foreign_keys": true,
+    "inspection_and_remediation_date_order": true,
+    "no_overlapping_lot_dwells": true,
+    "profile_row_counts": true,
+    "reading_values_and_cadence": true,
+    "requirement_effective_at_receipt": true,
+    "sqlite_integrity_and_constraints": true
+  },
+  "evaluation": {
+    "decisions": {
+      "matched": 8,
+      "missed": 0,
+      "missing_decisions": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "unexpected": 0,
+      "unexpected_decisions": []
+    },
+    "lot_links": {
+      "expected": 32,
+      "matched": 32,
+      "missing": [],
+      "unexpected": []
+    },
+    "passed": true
+  },
+  "passed": true,
+  "row_counts": {
+    "alarm": 6,
+    "alarm_lot": 32,
+    "alarm_state_event": 13,
+    "door_event": 8400,
+    "inspection": 6,
+    "inventory_lot": 10000,
+    "lot_storage": 10000,
+    "remediation": 16,
+    "sensor": 500,
+    "sensor_reading": 1000000,
+    "sensor_zone_assignment": 501,
+    "storage_requirement": 3,
+    "warehouse": 10,
+    "zone": 100
+  }
+}
