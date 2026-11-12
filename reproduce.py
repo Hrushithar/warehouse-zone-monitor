@@ -45,7 +45,7 @@ def run_pipeline(run_dir, profile, seed):
     copy_pipeline(run_dir)
     stages = (
         ("generate.py", "--profile", profile, "--seed", str(seed)),
-        ("inject_scenarios.py", "--profile", profile),
+        ("inject_scenarios.py", "--profile", profile, "--seed", str(seed)),
         ("monitor.py", "--profile", profile),
         ("respond.py", "--profile", profile),
         ("evaluate.py", "--profile", profile),

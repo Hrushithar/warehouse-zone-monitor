@@ -6,17 +6,17 @@
         {
           "observed_at": 1793227200,
           "observed_at_utc": "2026-10-28T22:40:00Z",
-          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261028T224000Z"
+          "reading_id": "RDG-SNS-ZONE-WH-002-002-HUMIDITY-02-20261028T224000Z"
         },
         {
           "observed_at": 1793227500,
           "observed_at_utc": "2026-10-28T22:45:00Z",
-          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261028T224500Z"
+          "reading_id": "RDG-SNS-ZONE-WH-002-002-HUMIDITY-02-20261028T224500Z"
         },
         {
           "observed_at": 1793227800,
           "observed_at_utc": "2026-10-28T22:50:00Z",
-          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261028T225000Z"
+          "reading_id": "RDG-SNS-ZONE-WH-002-002-HUMIDITY-02-20261028T225000Z"
         }
       ],
       "gap_started_at": 1792636200,
@@ -25,22 +25,22 @@
         {
           "observed_at": 1792636200,
           "observed_at_utc": "2026-10-22T02:30:00Z",
-          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T023000Z"
+          "reading_id": "RDG-SNS-ZONE-WH-002-002-HUMIDITY-02-20261022T023000Z"
         },
         {
           "observed_at": 1792636500,
           "observed_at_utc": "2026-10-22T02:35:00Z",
-          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T023500Z"
+          "reading_id": "RDG-SNS-ZONE-WH-002-002-HUMIDITY-02-20261022T023500Z"
         },
         {
           "observed_at": 1792636800,
           "observed_at_utc": "2026-10-22T02:40:00Z",
-          "reading_id": "RDG-SNS-ZONE-WH-001-001-HUMIDITY-01-20261022T024000Z"
+          "reading_id": "RDG-SNS-ZONE-WH-002-002-HUMIDITY-02-20261022T024000Z"
         }
       ],
       "operation": "CREATE_INTERNAL_SENSOR_GAP",
       "reason": "Append the same number of readings after the baseline observation period so the scenario retains the exact profile sensor_reading count.",
-      "sensor_id": "SNS-ZONE-WH-001-001-HUMIDITY-01",
+      "sensor_id": "SNS-ZONE-WH-002-002-HUMIDITY-02",
       "sensor_reading_count_after": 1000000,
       "sensor_reading_count_before": 1000000
     }

@@ -124,7 +124,7 @@ A threshold breach means observed values were outside a configured range for at 
 - `sensor` N:M `zone` over time through `sensor_zone_assignment`. Each bridge row is one effective assignment. The generated baseline has one open assignment per sensor; the ambiguous fixture adds a cross-zone overlap.
 - `zone` 1:N `door_event`; a door is identified within a zone by `door_code`, and events form its chronological history.
 - `storage_requirement` 1:N `inventory_lot`; each lot retains one versioned requirement.
-- `inventory_lot` N:M `zone` over time through `lot_storage`. Each bridge row is one dwell; a move closes a dwell and creates another.
+- `inventory_lot` N:M `zone` over time through `lot_storage`. Each bridge row is one dwell; a move closes a dwell and creates another. The seeded full profile contains 12 lots with sequential compatible dwells and 5 current dwells with `exited_at = NULL`; starter retains one closed dwell per lot.
 - `zone` 1:N `alarm`; each alarm belongs to one zone.
 - `sensor`, `door_event`, and `lot_storage` each have a possible 1:N source relationship to `alarm`. Exactly one source column is populated as determined by `alarm_type`.
 - `alarm` N:M `inventory_lot` through `alarm_lot`. An alarm can have no lot links when no inventory overlaps its window. A lot can be linked to many alarms.
@@ -160,6 +160,7 @@ The Python stages add rules that are not expressible in the current row-local sc
 - temperature/humidity limits come from the one active requirement for the zone type at replay start; threshold alarms need three consecutive breaches; drift uses three consecutive peer differences strictly greater than 1.5 °C;
 - door events follow a valid chronological open/close sequence, and duration alarms are strictly over the zone limit;
 - requirement versions are effective when a lot is received; dwell starts are not before receipt; dwells for one lot do not overlap;
+- full-profile validation requires 10,012 dwell rows, exactly 12 multi-dwell lots, and exactly 5 open-ended dwells while retaining 10,000 distinct inventory lots;
 - alarm source zone/time matches the effective sensor assignment, opening door event, or offending storage dwell;
 - affected lots have positive, correctly summed same-zone overlap, the correct impact type, and placement alarms link only their source dwell's lot;
 - inspections occur no earlier than detection; remediation occurs no earlier than inspection; quarantine occurs while the affected lot is still dwelling in the alarm zone;

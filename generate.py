@@ -16,6 +16,12 @@ PROFILES = {
     "full": (10, 10, 2_000, 100),
 }
 
+SCENARIO_ORDER = (
+    "TEMP_EXCURSION", "HUMIDITY_EXCURSION", "HIGH_OCCUPANCY",
+    "DOOR_OPEN_TOO_LONG", "SENSOR_GAP", "SENSOR_DRIFT",
+    "INCOMPATIBLE_STORAGE", "AMBIGUOUS_SENSOR_ZONE",
+)
+
 # Zone type, product code, temperature limits in °C, humidity limits in % RH
 REQUIREMENTS = (
     ("COLD", "CHILLED_GOODS", 2, 8, 45, 75),
@@ -30,6 +36,118 @@ SENSOR_LAYOUT = (
     ("HUMIDITY", 2),
     ("OCCUPANCY", 1),
 )
+
+
+def scenario_warehouses(profile, seed, warehouse_ids):
+    ordered = sorted(warehouse_ids)
+    if profile == "starter":
+        return {name: ordered[0] for name in SCENARIO_ORDER}
+    selected = random.Random(seed).sample(ordered, len(SCENARIO_ORDER))
+    return dict(zip(SCENARIO_ORDER, selected))
+
+
+def compatible_destination(db, warehouse_id, zone_type, source_zone, rng):
+    candidates = [
+        row[0] for row in db.execute("""
+            SELECT zone_id FROM zone
+            WHERE warehouse_id = ? AND zone_type = ? AND zone_id <> ?
+            ORDER BY zone_id
+        """, (warehouse_id, zone_type, source_zone))
+    ]
+    if not candidates:
+        raise ValueError(f"No compatible transfer destination for {source_zone}")
+    return rng.choice(candidates)
+
+
+def split_dwell(db, row, transition, transfer_number, rng):
+    storage_id, lot_id, source_zone, entered, exited, warehouse_id, zone_type = row
+    if not entered < transition < exited:
+        raise ValueError(f"Invalid transfer time for {storage_id}")
+    destination = compatible_destination(
+        db, warehouse_id, zone_type, source_zone, rng
+    )
+    db.execute(
+        "UPDATE lot_storage SET exited_at = ? WHERE storage_id = ?",
+        (transition, storage_id),
+    )
+    db.execute(
+        "INSERT INTO lot_storage VALUES (?, ?, ?, ?, ?)",
+        (f"STG-XFER-{transfer_number:06d}", lot_id, destination, transition, exited),
+    )
+
+
+def add_full_dwell_histories(db, seed):
+    rng = random.Random(seed ^ 0x5A17)
+    warehouses = [row[0] for row in db.execute(
+        "SELECT warehouse_id FROM warehouse ORDER BY warehouse_id"
+    )]
+    plan = scenario_warehouses("full", seed, warehouses)
+    transfer_at = START_TS + 25 * CADENCE
+    alarm_end = START_TS + 27 * CADENCE
+
+    candidate_query = """
+        SELECT s.storage_id, s.lot_id, s.zone_id, s.entered_at, s.exited_at,
+               z.warehouse_id, z.zone_type
+        FROM lot_storage AS s
+        JOIN zone AS z USING (zone_id)
+        JOIN inventory_lot AS l USING (lot_id)
+        JOIN storage_requirement AS r USING (requirement_id)
+        WHERE z.zone_type = r.required_zone_type
+          AND s.entered_at < ? AND s.exited_at > ?
+          AND (? IS NULL OR z.warehouse_id = ?)
+        ORDER BY s.storage_id
+    """
+    special_candidates = db.execute(
+        candidate_query,
+        (transfer_at, alarm_end, plan["TEMP_EXCURSION"], plan["TEMP_EXCURSION"]),
+    ).fetchall()
+    if not special_candidates:
+        raise ValueError("No full-profile lot can transfer during the temperature fixture")
+    special = rng.choice(special_candidates)
+    split_dwell(db, special, transfer_at, 1, rng)
+
+    remaining_candidates = db.execute("""
+        SELECT s.storage_id, s.lot_id, s.zone_id, s.entered_at, s.exited_at,
+               z.warehouse_id, z.zone_type
+        FROM lot_storage AS s
+        JOIN zone AS z USING (zone_id)
+        JOIN inventory_lot AS l USING (lot_id)
+        JOIN storage_requirement AS r USING (requirement_id)
+        WHERE z.zone_type = r.required_zone_type
+          AND s.lot_id <> ?
+          AND s.exited_at - s.entered_at >= 4 * ?
+        ORDER BY s.storage_id
+    """, (special[1], CADENCE)).fetchall()
+    for transfer_number, row in enumerate(rng.sample(remaining_candidates, 11), 2):
+        _, _, _, entered, exited, _, _ = row
+        steps = (exited - entered) // CADENCE
+        transition = entered + (steps // 2) * CADENCE
+        if transition == transfer_at:
+            transition += CADENCE
+        split_dwell(db, row, transition, transfer_number, rng)
+
+    gap_start = START_TS + 30 * CADENCE
+    transferred_lots = {
+        row[0] for row in db.execute(
+            "SELECT lot_id FROM lot_storage GROUP BY lot_id HAVING COUNT(*) > 1"
+        )
+    }
+    open_candidates = db.execute("""
+        SELECT s.storage_id, s.lot_id
+        FROM lot_storage AS s JOIN zone AS z USING (zone_id)
+        WHERE z.warehouse_id = ? AND s.entered_at < ? AND s.exited_at > ?
+        ORDER BY s.storage_id
+    """, (plan["SENSOR_GAP"], gap_start, gap_start)).fetchall()
+    open_candidates = [
+        row for row in open_candidates if row[1] not in transferred_lots
+    ]
+    if len(open_candidates) < 5:
+        raise ValueError("Not enough full-profile lots for open-ended dwell fixtures")
+    for storage_id, _ in rng.sample(open_candidates, 5):
+        db.execute(
+            "UPDATE lot_storage SET exited_at = NULL WHERE storage_id = ?",
+            (storage_id,),
+        )
 
 
 def reading_rows(sensor_id, sensor_type, samples, temp, humidity, rng):
@@ -131,6 +249,9 @@ def populate(db, profile, seed):
                         "INSERT INTO door_event VALUES (?, ?, ?, ?, ?)",
                         (f"DOR-{door_event_count:06d}", zone_id, "DOOR-01", occurred_at, event_type),
                     )
+
+    if profile == "full":
+        add_full_dwell_histories(db, seed)
 
 
 def main():

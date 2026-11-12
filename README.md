@@ -59,7 +59,7 @@ source .venv/bin/activate
 python -m unittest discover -s tests -v
 ```
 
-The test command should report ten passing tests and `OK`. No `pip install` step is required.
+The test command should report eleven passing tests and `OK`. No `pip install` step is required.
 
 ## Run the pipeline in order
 
@@ -82,26 +82,28 @@ Expected headline output is 8 labelled scenarios, 6 alarms, 2 diagnostics, 44 af
 
 ### Full profile
 
-The full profile exercises the same code and fixtures at submission scale: 10 warehouses, 100 zones, 500 sensors, 1,000,000 readings, and 10,000 lots.
+The full profile exercises the same rules and eight scenario types at submission scale: 10 warehouses, 100 zones, 500 sensors, 1,000,000 readings, and 10,000 lots.
 
 ```bash
 python generate.py --profile full --seed 20261022
-python inject_scenarios.py --profile full
+python inject_scenarios.py --profile full --seed 20261022
 python monitor.py --profile full
 python respond.py --profile full
 python evaluate.py --profile full
 python export_data.py --profile full --seed 20261022
 ```
 
-The full profile produces the same 6 alarms and 2 diagnostics. The committed full-run evidence records 8 of 8 decisions matched, precision 1.0, recall 1.0, 32 of 32 affected-lot links matched, 6 inspections, 16 remediation actions, and 13 alarm-state events. These are full-profile figures; the 44 lot links and 23 remediation actions above are starter-profile figures.
+The full profile produces the same 6 alarms and 2 diagnostics. The committed full-run evidence records 8 of 8 decisions matched, precision 1.0, recall 1.0, 40 of 40 affected-lot links matched, 6 inspections, 15 remediation actions, and 13 alarm-state events. These are full-profile figures; the 44 lot links and 23 remediation actions above are starter-profile figures.
+
+With seed `20261022`, the eight full-profile labels occupy eight distinct zones in eight distinct warehouses. The full baseline also contains 12 lots with sequential compatible dwells and 5 lots with open-ended current dwells, producing 10,012 `lot_storage` rows while preserving exactly 10,000 distinct lots. The starter profile and its committed sample remain byte-stable.
 
 ### What each stage does
 
 | Stage | Reads | Writes | Success looks like |
 |---|---|---|---|
 | `generate.py` | `schema.sql`, profile, seed | `generated/<profile>.sqlite` | Prints profile row counts, seed `20261022`, and the database path. This is the clean baseline. |
-| `inject_scenarios.py` | Baseline database | `generated/<profile>_scenario.sqlite`, `generated/<profile>_ground_truth.json`, `generated/<profile>_generation_provenance.json` | Prints `Labelled scenarios: 8`. Ground truth and generation provenance remain separate, and the baseline remains unchanged. |
-| `monitor.py` | Scenario database | `generated/<profile>_monitored.sqlite`, `generated/<profile>_diagnostics.json` | Transactionally persists 6 alarms and 2 stable-ID diagnostics, derives the compatible JSON from those rows, and prints 44 starter or 32 full affected-lot links. |
+| `inject_scenarios.py` | Baseline database, profile, seed | `generated/<profile>_scenario.sqlite`, `generated/<profile>_ground_truth.json`, `generated/<profile>_generation_provenance.json` | Prints `Labelled scenarios: 8`. Full selection is seeded from eligible records; ground truth and provenance record the actual choices and remain separate from the unchanged baseline. |
+| `monitor.py` | Scenario database | `generated/<profile>_monitored.sqlite`, `generated/<profile>_diagnostics.json` | Transactionally persists 6 alarms and 2 stable-ID diagnostics, derives the compatible JSON from those rows, and prints 44 starter or 40 full affected-lot links. |
 | `respond.py` | Monitored database | Appends state, inspection, and remediation rows to that database | Prints 6 inspections and one resolved telemetry alarm. Responses are simulated. |
 | `evaluate.py` | Monitored database, ground truth, diagnostics | `generated/<profile>_evaluation.json` | Exits zero with `"passed": true`; decisions and independently recomputed lot links have no misses or unexpected rows. |
 | `export_data.py` | Responded database, ground truth, diagnostics, provenance, schema, seed | `generated/<profile>_export/` | Re-evaluates the current database, prints `Validation passed`, and writes table exports, evidence reports, provenance, and a restorable `seed.sql`. |
@@ -158,13 +160,13 @@ The scenario injector removes those three reading IDs and appends three readings
 
 ## Validation, negative cases, and reproducibility
 
-`inject_scenarios.py` writes ground truth before detection. The monitor never reads it. The eight labels cover six persisted alarms—temperature, humidity, occupancy, door duration, telemetry gap, and incompatible storage—and two persisted diagnostics—sensor drift and ambiguous assignment. The evaluator verifies that `diagnostics.json` matches the diagnostic table, then counts the persisted rows exactly once. It compares decision type, zone, source, start, and exclusive end as a multiset. Separately, it reconstructs expected lot links and overlap seconds from `alarm` and `lot_storage`, then compares the complete `(alarm_id, lot_id, overlap_seconds, impact_type)` set.
+`inject_scenarios.py` writes ground truth from the records actually selected before detection. The monitor never reads it. The eight labels cover six persisted alarms—temperature, humidity, occupancy, door duration, telemetry gap, and incompatible storage—and two persisted diagnostics—sensor drift and ambiguous assignment. The evaluator verifies that `diagnostics.json` matches the diagnostic table, then counts the persisted rows exactly once. It compares decision type, zone, source, start, and exclusive end as a multiset. Separately, it reconstructs expected lot links and overlap seconds from `alarm` and `lot_storage`, then compares the complete `(alarm_id, lot_id, overlap_seconds, impact_type)` set.
 
 ### Four required negative cases
 
 The hackathon's four required cases and their verified outcomes are:
 
-1. **Incompatible lot placement:** moving a cold-storage lot into an ambient zone produces an `INCOMPATIBLE_STORAGE` alarm with `PLACEMENT_VIOLATION` impact, linked to the offending lot (`LOT-2026-000001`).
+1. **Incompatible lot placement:** moving a lot into a zone with a different type produces an `INCOMPATIBLE_STORAGE` alarm with `PLACEMENT_VIOLATION` impact, linked to the offending lot (`LOT-2026-000001` in starter; a seeded eligible lot in full).
 2. **Ambiguous sensor assignment:** mapping one sensor to multiple zones over the same interval without a rationale produces an `AMBIGUOUS_SENSOR_ZONE` diagnostic. Readings with multiple active assignments are not attributed to either zone.
 3. **Reading gap treated as normal:** deliberately omitting the expected `SENSOR_GAP` alarm is caught by decision evaluation as one missed decision and reduces recall from 1.0 to 7/8.
 4. **Alarm missing an affected-lot link:** deliberately omitting the expected `(alarm_id, lot_id)` row is caught by independent lot-link reconciliation as one missing link.
@@ -174,6 +176,8 @@ Cases 1 and 2 are deterministic input scenarios labelled by `inject_scenarios.py
 Additional coverage protects against false positives: a clean generated baseline must produce no alarms or diagnostics, and a reading exactly at the 8 °C limit followed by only two high samples must not produce a temperature alarm.
 
 The regression suite also inserts a schema-valid quarantine outside its lot's dwell and confirms `lot_remediation_during_dwell` fails. A second test mutates a previously passing database and confirms export validation recomputes evaluation from current rows rather than trusting an older passing evaluation artifact.
+
+The full-profile integration test additionally proves that an overlapping lot in another warehouse is excluded, a lot transferred out during the temperature alarm receives exactly 300 seconds of overlap, and an open-ended dwell receives the complete applicable alarm-window overlap. Shared-sensor attribution is intentionally not modelled.
 
 Evidence included in Git:
 
@@ -200,13 +204,14 @@ sqlite3 -bail generated/restored.sqlite < generated/full_export/seed.sql
 sqlite3 -header -column generated/restored.sqlite <<'SQL'
 SELECT COUNT(*) AS sensor_readings FROM sensor_reading;
 SELECT COUNT(*) AS inventory_lots FROM inventory_lot;
+SELECT COUNT(*) AS lot_dwells FROM lot_storage;
 SELECT COUNT(*) AS diagnostics FROM diagnostic;
 PRAGMA integrity_check;
 PRAGMA foreign_key_check;
 SQL
 ```
 
-For the full export, the counts should be `1000000`, `10000`, and `2`; `integrity_check` should return `ok`, and `foreign_key_check` should return no rows. Choose a database path that does not already contain these tables.
+For the full export, the counts should be `1000000`, `10000`, `10012`, and `2`; `integrity_check` should return `ok`, and `foreign_key_check` should return no rows. Choose a database path that does not already contain these tables.
 
 ## Deliverables and limits
 

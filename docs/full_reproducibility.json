@@ -6,21 +6,21 @@
   "export_checksums_match": true,
   "export_files_compared": 36,
   "independent_runs": 2,
-  "manifest_sha256": "cd46b4ddd62bda812cea9c2233246506fd943cb709dfab5d510344e05e2fe7f7",
+  "manifest_sha256": "0fa3deabe97780033019202ecbfbf51a7647baaf60c87010bb11467dd66c23f0",
   "passed": true,
   "profile": "full",
   "python_executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
   "python_version": "3.14.7",
   "row_counts": {
     "alarm": 6,
-    "alarm_lot": 32,
+    "alarm_lot": 40,
     "alarm_state_event": 13,
     "diagnostic": 2,
     "door_event": 8400,
     "inspection": 6,
     "inventory_lot": 10000,
-    "lot_storage": 10000,
-    "remediation": 16,
+    "lot_storage": 10012,
+    "remediation": 15,
     "sensor": 500,
     "sensor_reading": 1000000,
     "sensor_zone_assignment": 501,
@@ -30,8 +30,8 @@
   },
   "row_counts_match": true,
   "run_manifest_sha256": [
-    "cd46b4ddd62bda812cea9c2233246506fd943cb709dfab5d510344e05e2fe7f7",
-    "cd46b4ddd62bda812cea9c2233246506fd943cb709dfab5d510344e05e2fe7f7"
+    "0fa3deabe97780033019202ecbfbf51a7647baaf60c87010bb11467dd66c23f0",
+    "0fa3deabe97780033019202ecbfbf51a7647baaf60c87010bb11467dd66c23f0"
   ],
   "seed": 20261022
 }

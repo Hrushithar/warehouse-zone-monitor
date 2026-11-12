@@ -5,6 +5,7 @@
     "dwell_date_order": true,
     "fixture_decisions_and_lot_links": true,
     "foreign_keys": true,
+    "full_dwell_history_shape": true,
     "inspection_and_remediation_date_order": true,
     "lot_remediation_during_dwell": true,
     "no_overlapping_lot_dwells": true,
@@ -25,8 +26,8 @@
       "unexpected_decisions": []
     },
     "lot_links": {
-      "expected": 32,
-      "matched": 32,
+      "expected": 40,
+      "matched": 40,
       "missing": [],
       "unexpected": []
     },
@@ -35,14 +36,14 @@
   "passed": true,
   "row_counts": {
     "alarm": 6,
-    "alarm_lot": 32,
+    "alarm_lot": 40,
     "alarm_state_event": 13,
     "diagnostic": 2,
     "door_event": 8400,
     "inspection": 6,
     "inventory_lot": 10000,
-    "lot_storage": 10000,
-    "remediation": 16,
+    "lot_storage": 10012,
+    "remediation": 15,
     "sensor": 500,
     "sensor_reading": 1000000,
     "sensor_zone_assignment": 501,

@@ -217,6 +217,96 @@ class WarehousePipelineTests(unittest.TestCase):
             self.assertTrue(report["export_checksums_match"])
             self.assertEqual(report["row_counts"]["diagnostic"], 2)
 
+    def test_full_profile_spreads_scenarios_and_exercises_dwell_history(self):
+        with tempfile.TemporaryDirectory() as work:
+            full = sqlite3.connect(Path(work) / "full.sqlite")
+            self.addCleanup(full.close)
+            full.executescript((ROOT / "schema.sql").read_text(encoding="utf-8"))
+            populate(full, "full", 20261022)
+
+            self.assertEqual(
+                full.execute("SELECT COUNT(*) FROM sensor_reading").fetchone()[0],
+                1_000_000,
+            )
+            self.assertEqual(
+                full.execute("SELECT COUNT(*) FROM inventory_lot").fetchone()[0],
+                10_000,
+            )
+            multiple_dwells = full.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT lot_id FROM lot_storage
+                    GROUP BY lot_id HAVING COUNT(*) > 1
+                )
+            """).fetchone()[0]
+            open_dwells = full.execute(
+                "SELECT COUNT(*) FROM lot_storage WHERE exited_at IS NULL"
+            ).fetchone()[0]
+            self.assertEqual(multiple_dwells, 12)
+            self.assertEqual(open_dwells, 5)
+
+            truth = inject(full, profile="full", seed=20261022)
+            alarms, diagnostics = detect(full)
+            persist(full, alarms, diagnostics)
+            decisions = score_decisions(full, truth, diagnostics)
+            self.assertEqual(decisions["matched"], 8)
+            self.assertEqual(decisions["missed"], 0)
+            self.assertEqual(decisions["unexpected"], 0)
+
+            labelled_warehouses = full.execute("""
+                SELECT COUNT(DISTINCT z.warehouse_id)
+                FROM zone AS z
+                WHERE z.zone_id IN ({})
+            """.format(",".join("?" for _ in truth)), [row["zone_id"] for row in truth]).fetchone()[0]
+            self.assertEqual(labelled_warehouses, 8)
+            self.assertEqual(len({row["zone_id"] for row in truth}), 8)
+
+            alarm_id, alarm_zone, started_at, window_end_at = full.execute("""
+                SELECT alarm_id, zone_id, started_at, window_end_at
+                FROM alarm WHERE alarm_type = 'TEMP_EXCURSION'
+            """).fetchone()
+            alarm_warehouse, = full.execute(
+                "SELECT warehouse_id FROM zone WHERE zone_id = ?", (alarm_zone,)
+            ).fetchone()
+            other_lot, = full.execute("""
+                SELECT s.lot_id FROM lot_storage AS s JOIN zone AS z USING (zone_id)
+                WHERE z.warehouse_id <> ? AND s.entered_at < ?
+                  AND (s.exited_at IS NULL OR s.exited_at > ?)
+                ORDER BY s.lot_id LIMIT 1
+            """, (alarm_warehouse, window_end_at, started_at)).fetchone()
+            self.assertIsNone(full.execute("""
+                SELECT 1 FROM alarm_lot WHERE alarm_id = ? AND lot_id = ?
+            """, (alarm_id, other_lot)).fetchone())
+
+            transfer_lot, = full.execute("""
+                SELECT first.lot_id
+                FROM lot_storage AS first
+                JOIN lot_storage AS next
+                  ON next.lot_id = first.lot_id
+                 AND next.entered_at = first.exited_at
+                WHERE first.zone_id = ? AND first.exited_at > ?
+                  AND first.exited_at < ?
+                ORDER BY first.lot_id LIMIT 1
+            """, (alarm_zone, started_at, window_end_at)).fetchone()
+            transfer_overlap, = full.execute("""
+                SELECT overlap_seconds FROM alarm_lot
+                WHERE alarm_id = ? AND lot_id = ?
+            """, (alarm_id, transfer_lot)).fetchone()
+            self.assertEqual(transfer_overlap, 300)
+
+            gap_alarm, gap_zone, gap_start, gap_end = full.execute("""
+                SELECT alarm_id, zone_id, started_at, window_end_at
+                FROM alarm WHERE alarm_type = 'SENSOR_GAP'
+            """).fetchone()
+            open_overlap, = full.execute("""
+                SELECT al.overlap_seconds
+                FROM alarm_lot AS al
+                JOIN lot_storage AS s USING (lot_id)
+                WHERE al.alarm_id = ? AND s.zone_id = ?
+                  AND s.exited_at IS NULL AND s.entered_at < ?
+                ORDER BY al.lot_id LIMIT 1
+            """, (gap_alarm, gap_zone, gap_start)).fetchone()
+            self.assertEqual(open_overlap, gap_end - gap_start)
+
 
 if __name__ == "__main__":
     unittest.main()
