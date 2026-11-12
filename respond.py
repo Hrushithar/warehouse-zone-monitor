@@ -9,7 +9,7 @@ LOT_ACTIONS = {"TEMP_EXCURSION", "HUMIDITY_EXCURSION", "INCOMPATIBLE_STORAGE"}
 
 def record_responses(db):
     alarms = db.execute("""
-        SELECT alarm_id, alarm_type, detected_at, window_end_at, sensor_id
+        SELECT alarm_id, alarm_type, detected_at, window_end_at, sensor_id, zone_id
         FROM alarm ORDER BY alarm_id
     """).fetchall()
 
@@ -20,7 +20,7 @@ def record_responses(db):
 
     action_count = resolved_count = 0
 
-    for alarm_id, kind, detected, window_end, sensor_id in alarms:
+    for alarm_id, kind, detected, window_end, sensor_id, zone_id in alarms:
         suffix = alarm_id.removeprefix("ALM-")
         inspection_id = f"INSP-{suffix}"
         lots = [
@@ -31,7 +31,9 @@ def record_responses(db):
         ]
 
         acknowledged = detected + 60
-        inspected = max(acknowledged + 60, window_end)
+        inspected = acknowledged + 60
+        if kind not in LOT_ACTIONS:
+            inspected = max(inspected, window_end)
         performed = inspected + 60
 
         if kind == "SENSOR_GAP":
@@ -48,11 +50,23 @@ def record_responses(db):
             role = "QUALITY"
             finding = "RISK_CONFIRMED" if lots else "NO_PRODUCT_IMPACT"
             notes = f"Reviewed {kind} and identified {len(lots)} overlapping lots."
-            actions = [
-                ("QUARANTINE_LOT", lot_id, "Simulated hold pending a quality disposition.")
-                for lot_id in lots
-                if kind in LOT_ACTIONS
-            ]
+            actions = []
+            if kind in LOT_ACTIONS:
+                active_lots = db.execute("""
+                    SELECT al.lot_id
+                    FROM alarm_lot AS al
+                    JOIN lot_storage AS s USING (lot_id)
+                    WHERE al.alarm_id = ? AND s.zone_id = ?
+                      AND s.entered_at <= ?
+                      AND (s.exited_at IS NULL OR s.exited_at > ?)
+                    ORDER BY al.lot_id
+                """, (alarm_id, zone_id, performed, performed))
+                actions = [
+                    ("QUARANTINE_LOT", lot_id, "Simulated hold pending a quality disposition.")
+                    for (lot_id,) in active_lots
+                ]
+                if len(actions) < len(lots):
+                    notes += f" {len(lots) - len(actions)} lots require location follow-up."
 
         db.execute("""
             INSERT INTO alarm_state_event

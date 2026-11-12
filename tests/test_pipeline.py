@@ -5,6 +5,7 @@ from evaluate import score_decisions, score_lot_links
 from generate import ROOT, populate
 from inject_scenarios import COLD, inject, set_readings
 from monitor import detect, persist
+from negative_fixtures import build_negative_fixtures
 from respond import record_responses
 
 
@@ -57,31 +58,27 @@ class WarehousePipelineTests(unittest.TestCase):
         )
 
     def test_missing_outage_alarm_fails_evaluation(self):
-        truth = inject(self.db)
-        alarms, diagnostics = detect(self.db)
-        # Simulate a detector that incorrectly treats the outage as normal.
-        persist(self.db, [alarm for alarm in alarms if alarm[0] != "SENSOR_GAP"])
+        truth, diagnostics = self.run_scenario()
+        fixture, _ = build_negative_fixtures(self.db, truth)
+        alarm_id = fixture["mutation"]["omit_alarm_id"]
+        for table in ("alarm_lot", "alarm_state_event", "alarm"):
+            self.db.execute(f"DELETE FROM {table} WHERE alarm_id = ?", (alarm_id,))
 
         result = score_decisions(self.db, truth, diagnostics)
-        self.assertEqual(result["missed"], 1)
+        self.assertEqual(result["missed"], fixture["expected_evaluation"]["missed_decisions"])
         self.assertEqual(result["missing_decisions"][0][0], "SENSOR_GAP")
         self.assertEqual(result["recall"], 7 / 8)
 
     def test_missing_affected_lot_link_fails_evaluation(self):
-        self.run_scenario()
-        link = self.db.execute("""
-            SELECT al.alarm_id, al.lot_id
-            FROM alarm_lot AS al JOIN alarm AS a USING (alarm_id)
-            WHERE a.alarm_type = 'TEMP_EXCURSION'
-            ORDER BY al.lot_id LIMIT 1
-        """).fetchone()
-        self.assertIsNotNone(link)
+        truth, _ = self.run_scenario()
+        _, fixture = build_negative_fixtures(self.db, truth)
+        link = tuple(fixture["mutation"]["omit_alarm_lot"])
         self.db.execute(
             "DELETE FROM alarm_lot WHERE alarm_id = ? AND lot_id = ?", link,
         )
 
         result = score_lot_links(self.db)
-        self.assertEqual(len(result["missing"]), 1)
+        self.assertEqual(len(result["missing"]), fixture["expected_evaluation"]["missing_lot_links"])
         self.assertEqual(result["missing"][0][:2], link)
         self.assertEqual(result["unexpected"], [])
 
@@ -92,6 +89,19 @@ class WarehousePipelineTests(unittest.TestCase):
         self.assertGreaterEqual(actions, 2)
         self.assertEqual(resolved, 1)
         self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+        placement_hold = self.db.execute("""
+            SELECT r.performed_at, s.entered_at, s.exited_at
+            FROM remediation AS r
+            JOIN alarm AS a USING (alarm_id)
+            JOIN lot_storage AS s ON s.storage_id = a.storage_id
+            WHERE r.action_type = 'QUARANTINE_LOT'
+              AND a.alarm_type = 'INCOMPATIBLE_STORAGE'
+        """).fetchone()
+        self.assertIsNotNone(placement_hold)
+        performed_at, entered_at, exited_at = placement_hold
+        self.assertLessEqual(entered_at, performed_at)
+        self.assertLess(performed_at, exited_at)
 
         states = self.db.execute("""
             SELECT e.state

@@ -1,0 +1,26 @@
+{
+  "export_checksums_match": true,
+  "export_files_compared": 33,
+  "independent_runs": 2,
+  "manifest_sha256": "08cca4cbbc17c42ff2e9bf5a62d97550ab7a416888ff6038e7ffa3a7833b55a0",
+  "profile": "full",
+  "python_version": "3.14.7",
+  "row_counts": {
+    "alarm": 6,
+    "alarm_lot": 32,
+    "alarm_state_event": 13,
+    "door_event": 8400,
+    "inspection": 6,
+    "inventory_lot": 10000,
+    "lot_storage": 10000,
+    "remediation": 16,
+    "sensor": 500,
+    "sensor_reading": 1000000,
+    "sensor_zone_assignment": 501,
+    "storage_requirement": 3,
+    "warehouse": 10,
+    "zone": 100
+  },
+  "row_counts_match": true,
+  "seed": 20261022
+}

@@ -38,7 +38,7 @@ Use `--profile full` in all six pipeline commands to generate **10 warehouses, 1
 
 A lot is linked to an alarm when it was in the same zone and its dwell interval has positive overlap with the alarm window. Intervals use UTC Unix seconds and an exclusive end. Placement alarms link the offending lot. A long door opening can still raise an alarm in an empty zone.
 
-Alarm state changes are appended as events. Inspections reference the alarm, and lot-level remediation must reference a lot linked to that same alarm. The simulated response can quarantine affected lots or record a sensor repair. A resumed sensor reading can close the telemetry alarm while preserving the unverified inventory history.
+Alarm state changes are appended as events. Inspections reference the alarm, and lot-level remediation must reference a lot linked to that same alarm. The simulated response can quarantine affected lots still in the alarm zone or record a sensor repair. The inspection flags departed lots for location follow-up. A resumed sensor reading can close the telemetry alarm while preserving the unverified inventory history.
 
 ## Inspect an alarm
 
@@ -55,12 +55,14 @@ ORDER BY a.alarm_id, l.lot_id;
 
 - [Schema](schema.sql) and [data dictionary](docs/data_dictionary.md) document the entities, keys, relationships, and lifecycle rules.
 - [Regression tests](tests/test_pipeline.py) cover the clean baseline, threshold boundaries, incompatible placement, conflicting assignments, missing outage alarms, missing affected-lot links, and response history.
+- [Labelled negative output fixtures](docs/full_negative_fixtures.json) record the expected failures when a gap alarm or lot link is omitted.
 - [Full validation summary](docs/full_validation_summary.json) records integrity and foreign-key checks, expected volumes, date and lifecycle checks, and evaluation results.
+- [Reproducibility report](docs/full_reproducibility.json) records the comparison of two independent full runs.
 - [Full source manifest](docs/full_source_manifest.json) records the fixed seed, synthetic provenance, row counts, and SHA-256 checksums.
 
 To reproduce the full dataset, run the six pipeline commands with `--profile full` and seed `20261022` in two fresh checkouts using the same Python version. Compare their `generated/full_export/source_manifest.json` files with `cmp`. Matching manifests demonstrate identical row counts and export checksums.
 
-Each export includes CSV and JSON for every table, a `seed.sql` snapshot, separate `ground_truth.json`, diagnostics, a validation summary, and the source manifest. The detector does not read ground truth. All data is synthetic and the project uses no external datasets.
+Each export includes CSV and JSON for every table, a `seed.sql` snapshot, separate `ground_truth.json`, labelled `negative_fixtures.json`, diagnostics, a validation summary, and the source manifest. The detector does not read ground truth. All data is synthetic and the project uses no external datasets.
 
 To restore the full export into a fresh SQLite database:
 

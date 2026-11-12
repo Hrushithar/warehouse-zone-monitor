@@ -79,6 +79,18 @@ def score_lot_links(db):
     }
 
 
+def evaluate(db, truth, diagnostics):
+    decisions = score_decisions(db, truth, diagnostics)
+    links = score_lot_links(db)
+    passed = (
+        decisions["missed"] == 0
+        and decisions["unexpected"] == 0
+        and not links["missing"]
+        and not links["unexpected"]
+    )
+    return {"passed": passed, "decisions": decisions, "lot_links": links}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate warehouse replay outputs.")
     parser.add_argument("--profile", choices=("starter", "full"), default="starter")
@@ -93,20 +105,11 @@ def main():
     diagnostics = json.loads((output / f"{args.profile}_diagnostics.json").read_text())
 
     with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
-        decisions = score_decisions(db, truth, diagnostics)
-        links = score_lot_links(db)
-
-    passed = (
-        decisions["missed"] == 0
-        and decisions["unexpected"] == 0
-        and not links["missing"]
-        and not links["unexpected"]
-    )
-    report = {"passed": passed, "decisions": decisions, "lot_links": links}
+        report = evaluate(db, truth, diagnostics)
     rendered = json.dumps(report, indent=2)
     (output / f"{args.profile}_evaluation.json").write_text(rendered + "\n")
     print(rendered)
-    raise SystemExit(0 if passed else 1)
+    raise SystemExit(0 if report["passed"] else 1)
 
 
 if __name__ == "__main__":

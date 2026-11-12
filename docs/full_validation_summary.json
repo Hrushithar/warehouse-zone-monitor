@@ -1,11 +1,14 @@
 {
   "checks": {
     "alarm_lifecycle": true,
+    "alarm_source_zone": true,
     "dwell_date_order": true,
     "fixture_decisions_and_lot_links": true,
     "foreign_keys": true,
     "inspection_and_remediation_date_order": true,
+    "lot_remediation_during_dwell": true,
     "no_overlapping_lot_dwells": true,
+    "primary_keys_and_duplicates": true,
     "profile_row_counts": true,
     "reading_values_and_cadence": true,
     "requirement_effective_at_receipt": true,
