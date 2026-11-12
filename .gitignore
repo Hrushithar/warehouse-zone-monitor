@@ -1,0 +1,20 @@
+# Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local credentials and editor settings
+.env
+.env.*
+!.env.example
+.vscode/
+.DS_Store
+
+# Generated datasets and local databases
+/generated/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
