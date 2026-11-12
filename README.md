@@ -158,14 +158,18 @@ The fixed starter run shows `ALM-000005` for humidity sensor `SNS-ZONE-WH-001-00
 
 `inject_scenarios.py` writes ground truth before detection. The monitor never reads it. The eight labels cover six persisted alarms—temperature, humidity, occupancy, door duration, telemetry gap, and incompatible storage—and two diagnostics—sensor drift and ambiguous assignment. The evaluator compares decision type, zone, source, start, and exclusive end as a multiset. Separately, it reconstructs expected lot links and overlap seconds from `alarm` and `lot_storage`, then compares the complete `(alarm_id, lot_id, overlap_seconds, impact_type)` set.
 
-Four important negative/control cases are exercised by the tests:
+### Four required negative cases
 
-1. A clean generated baseline must produce no alarms or diagnostics.
-2. A value exactly at the 8 °C maximum followed by only two high samples must not produce a temperature alarm.
-3. Omitting the labelled gap alarm must produce one missed decision and reduce recall to 7/8.
-4. Omitting a required incompatible-storage lot link must produce one missing lot link.
+The hackathon's four required cases and their verified outcomes are:
 
-The first two guard against false positives at input/rule boundaries. The latter two are exported as the two labelled output-mutation records in [the committed full negative-fixture report](docs/full_negative_fixtures.json); each names the exact row to omit and the expected evaluator failure.
+1. **Incompatible lot placement:** moving a cold-storage lot into an ambient zone produces an `INCOMPATIBLE_STORAGE` alarm with `PLACEMENT_VIOLATION` impact, linked to the offending lot (`LOT-2026-000001`).
+2. **Ambiguous sensor assignment:** mapping one sensor to multiple zones over the same interval without a rationale produces an `AMBIGUOUS_SENSOR_ZONE` diagnostic. Readings with multiple active assignments are not attributed to either zone.
+3. **Reading gap treated as normal:** deliberately omitting the expected `SENSOR_GAP` alarm is caught by decision evaluation as one missed decision and reduces recall from 1.0 to 7/8.
+4. **Alarm missing an affected-lot link:** deliberately omitting the expected `(alarm_id, lot_id)` row is caught by independent lot-link reconciliation as one missing link.
+
+Cases 1 and 2 are deterministic input scenarios labelled by `inject_scenarios.py` and asserted by the scenario regression test. Cases 3 and 4 are the two deliberate output mutations in [the committed full negative-fixture report](docs/full_negative_fixtures.json), which identifies the exact rows to omit and the expected evaluator failures.
+
+Additional coverage protects against false positives: a clean generated baseline must produce no alarms or diagnostics, and a reading exactly at the 8 °C limit followed by only two high samples must not produce a temperature alarm.
 
 Evidence included in Git:
 
